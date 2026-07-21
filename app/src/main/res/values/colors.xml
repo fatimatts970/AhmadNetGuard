@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_screen">#F2EFEF</color>
+    <color name="brand_dark">#4A3B3B</color>
+    <color name="card_white">#FFFFFF</color>
+    <color name="text_primary">#231B1B</color>
+    <color name="text_secondary">#8A7F7F</color>
+
+    <color name="green_online">#22A559</color>
+    <color name="green_bg">#E4F5EA</color>
+
+    <color name="red_blocked">#E14747</color>
+    <color name="red_bg">#FCE7E7</color>
+</resources>
