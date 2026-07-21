@@ -40,6 +40,9 @@ class MainActivity : AppCompatActivity() {
             },
             onDeviceClick = { device ->
                 HistoryActivity.start(this, device.macAddress, device.displayName())
+            },
+            onDeviceLongClick = { device ->
+                showRenameDialog(device.macAddress, device.displayName())
             }
         )
         binding.recyclerDevices.layoutManager = LinearLayoutManager(this)
