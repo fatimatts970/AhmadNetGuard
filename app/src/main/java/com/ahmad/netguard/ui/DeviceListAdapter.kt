@@ -10,6 +10,7 @@ import com.ahmad.netguard.model.Device
 class DeviceListAdapter(
     private val onBlockUnblockClick: (Device) -> Unit,
     private val onDeviceClick: (Device) -> Unit,
+    private val onDeviceLongClick: (Device) -> Unit,
 ) : RecyclerView.Adapter<DeviceListAdapter.DeviceViewHolder>() {
 
     private var devices: List<Device> = emptyList()
@@ -25,7 +26,7 @@ class DeviceListAdapter(
     }
 
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
-        holder.bind(devices[position], onBlockUnblockClick, onDeviceClick)
+        holder.bind(devices[position], onBlockUnblockClick, onDeviceClick, onDeviceLongClick)
     }
 
     override fun getItemCount() = devices.size
@@ -33,8 +34,17 @@ class DeviceListAdapter(
     class DeviceViewHolder(private val binding: ItemDeviceBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(device: Device, onBlockUnblockClick: (Device) -> Unit, onDeviceClick: (Device) -> Unit) {
+        fun bind(
+            device: Device,
+            onBlockUnblockClick: (Device) -> Unit,
+            onDeviceClick: (Device) -> Unit,
+            onDeviceLongClick: (Device) -> Unit,
+        ) {
             binding.root.setOnClickListener { onDeviceClick(device) }
+            binding.root.setOnLongClickListener {
+                onDeviceLongClick(device)
+                true
+            }
             binding.textDeviceName.text = device.displayName()
             binding.textIp.text = device.ipAddress
             binding.textMac.text = device.macAddress
