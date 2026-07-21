@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AhmadNetGuard" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_dark</item>
+        <item name="android:windowBackground">@color/bg_screen</item>
+    </style>
+</resources>
