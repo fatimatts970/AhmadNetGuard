@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="@color/card_white">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="14dp">
+
+        <ImageView
+            android:id="@+id/icon_device_type"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_icon_rounded"
+            android:padding="10dp"
+            android:src="@android:drawable/stat_sys_data_bluetooth"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/text_device_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toEndOf="@id/icon_device_type"
+            app:layout_constraintTop_toTopOf="@id/icon_device_type"
+            app:layout_constraintEnd_toStartOf="@id/btn_block_unblock"
+            tools:text="Ahmad's Phone" />
+
+        <TextView
+            android:id="@+id/text_ip"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="@color/green_online"
+            android:textSize="12sp"
+            app:layout_constraintStart_toEndOf="@id/icon_device_type"
+            app:layout_constraintTop_toBottomOf="@id/text_device_name"
+            tools:text="192.168.100.10" />
+
+        <TextView
+            android:id="@+id/text_mac"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            app:layout_constraintStart_toEndOf="@id/icon_device_type"
+            app:layout_constraintTop_toBottomOf="@id/text_ip"
+            tools:text="42:ec:40:8b:1a:e8" />
+
+        <TextView
+            android:id="@+id/text_meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            app:layout_constraintStart_toEndOf="@id/icon_device_type"
+            app:layout_constraintTop_toBottomOf="@id/text_mac"
+            tools:text="WiFi · 1h 18m · -57 dBm · ⚠ possibly sharing hotspot" />
+
+        <ImageButton
+            android:id="@+id/btn_block_unblock"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_icon_action"
+            android:contentDescription="Block or unblock this device"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.cardview.widget.CardView>
