@@ -33,25 +33,26 @@ class MainActivity : AppCompatActivity() {
         credentialStore = RouterCredentialStore(this)
 
         if (!credentialStore.hasSavedCredentials()) {
-            goToLogin()
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
             return
         }
 
         startMonitorService()
         setupDeviceList()
-        unlockAndConnect()
+        setupSwipeRefresh()
+        connectAndLoad()
     }
 
     override fun onResume() {
         super.onResume()
-        if (credentialStore.hasSavedCredentials()) {
-            loadDevices()
-        }
+        loadDevices()
     }
 
-    private fun goToLogin() {
-        startActivity(Intent(this, LoginActivity::class.java))
-        finish()
+    private fun setupSwipeRefresh() {
+        binding.swipeRefresh.setOnRefreshListener {
+            loadDevices()
+        }
     }
 
     private fun setupDeviceList() {
@@ -80,21 +81,7 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerDevices.adapter = deviceAdapter
     }
 
-    private fun unlockAndConnect() {
-        if (BiometricHelper.canUseBiometrics(this)) {
-            BiometricHelper.prompt(
-                activity = this,
-                onSuccess = { connectWithSavedCredentials() },
-                onFailure = {
-                    Toast.makeText(this, "Fingerprint not verified", Toast.LENGTH_SHORT).show()
-                }
-            )
-        } else {
-            connectWithSavedCredentials()
-        }
-    }
-
-    private fun connectWithSavedCredentials() {
+    private fun connectAndLoad() {
         lifecycleScope.launch {
             val success = router.login(
                 credentialStore.getRouterIp(),
@@ -107,7 +94,8 @@ class MainActivity : AppCompatActivity() {
                     "Couldn't log in to the router — check your saved details",
                     Toast.LENGTH_LONG
                 ).show()
-                goToLogin()
+                startActivity(Intent(this@MainActivity, LoginActivity::class.java))
+                finish()
                 return@launch
             }
             loadDevices()
@@ -128,6 +116,7 @@ class MainActivity : AppCompatActivity() {
             val devices = router.getDevices().onEach { device ->
                 nameStore.getCustomName(device.macAddress)?.let { device.customName = it }
             }
+            binding.swipeRefresh.isRefreshing = false
             if (devices.isEmpty()) {
                 Toast.makeText(this@MainActivity, "No devices found — pull to refresh or check connection", Toast.LENGTH_SHORT).show()
             }
