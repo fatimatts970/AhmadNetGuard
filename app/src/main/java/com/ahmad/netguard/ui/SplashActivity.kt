@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import com.ahmad.netguard.R
+import com.ahmad.netguard.network.RouterCredentialStore
 
 class SplashActivity : AppCompatActivity() {
 
@@ -14,8 +15,35 @@ class SplashActivity : AppCompatActivity() {
         setContentView(R.layout.activity_splash)
 
         Handler(Looper.getMainLooper()).postDelayed({
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+            routeToNextScreen()
         }, 1800)
+    }
+
+    private fun routeToNextScreen() {
+        val credentialStore = RouterCredentialStore(this)
+
+        if (!credentialStore.hasSavedCredentials()) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
+        if (BiometricHelper.canUseBiometrics(this)) {
+            BiometricHelper.prompt(
+                activity = this,
+                onSuccess = { goToDashboard() },
+                onFailure = {
+                    startActivity(Intent(this, LoginActivity::class.java))
+                    finish()
+                }
+            )
+        } else {
+            goToDashboard()
+        }
+    }
+
+    private fun goToDashboard() {
+        startActivity(Intent(this, DashboardActivity::class.java))
+        finish()
     }
 }
