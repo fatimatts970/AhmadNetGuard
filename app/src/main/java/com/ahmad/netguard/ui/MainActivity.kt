@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.EditText
-import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -32,6 +32,11 @@ class MainActivity : AppCompatActivity() {
         nameStore = DeviceNameStore(this)
         credentialStore = RouterCredentialStore(this)
 
+        if (!credentialStore.hasSavedCredentials()) {
+            goToLogin()
+            return
+        }
+
         startMonitorService()
         setupDeviceList()
         unlockAndConnect()
@@ -44,12 +49,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun goToLogin() {
+        startActivity(Intent(this, LoginActivity::class.java))
+        finish()
+    }
+
     private fun setupDeviceList() {
         deviceAdapter = DeviceListAdapter(
             onBlockUnblockClick = { device ->
                 lifecycleScope.launch {
-                    if (device.isBlocked) router.unblockDevice(device.macAddress)
+                    val success = if (device.isBlocked) router.unblockDevice(device.macAddress)
                     else router.blockDevice(device.macAddress)
+                    if (!success) {
+                        Toast.makeText(this@MainActivity, "Action failed — router didn't confirm it", Toast.LENGTH_SHORT).show()
+                    }
                     loadDevices()
                 }
             },
@@ -58,6 +71,9 @@ class MainActivity : AppCompatActivity() {
             },
             onDeviceLongClick = { device ->
                 showRenameDialog(device.macAddress, device.displayName())
+            },
+            onRenameClick = { device ->
+                showRenameDialog(device.macAddress, device.displayName())
             }
         )
         binding.recyclerDevices.layoutManager = LinearLayoutManager(this)
@@ -65,16 +81,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun unlockAndConnect() {
-        if (!credentialStore.hasSavedCredentials()) {
-            showFirstTimeSetupDialog()
-            return
-        }
-
         if (BiometricHelper.canUseBiometrics(this)) {
             BiometricHelper.prompt(
                 activity = this,
                 onSuccess = { connectWithSavedCredentials() },
-                onFailure = { }
+                onFailure = {
+                    Toast.makeText(this, "Fingerprint not verified", Toast.LENGTH_SHORT).show()
+                }
             )
         } else {
             connectWithSavedCredentials()
@@ -83,43 +96,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun connectWithSavedCredentials() {
         lifecycleScope.launch {
-            router.login(
+            val success = router.login(
                 credentialStore.getRouterIp(),
                 credentialStore.getUsername(),
                 credentialStore.getPassword()
             )
+            if (!success) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Couldn't log in to the router — check your saved details",
+                    Toast.LENGTH_LONG
+                ).show()
+                goToLogin()
+                return@launch
+            }
             loadDevices()
         }
-    }
-
-    private fun showFirstTimeSetupDialog() {
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 0)
-        }
-        val ipInput = EditText(this).apply { hint = "Router IP (e.g. 192.168.100.1)" }
-        val userInput = EditText(this).apply { hint = "Username" }
-        val passInput = EditText(this).apply {
-            hint = "Password"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        }
-        layout.addView(ipInput)
-        layout.addView(userInput)
-        layout.addView(passInput)
-
-        AlertDialog.Builder(this)
-            .setTitle("Connect to your router")
-            .setMessage("Enter these once — after this you'll unlock with your fingerprint.")
-            .setView(layout)
-            .setCancelable(false)
-            .setPositiveButton("Save & Connect") { _, _ ->
-                val ip = ipInput.text.toString().ifBlank { "192.168.100.1" }
-                val user = userInput.text.toString()
-                val pass = passInput.text.toString()
-                credentialStore.save(ip, user, pass)
-                connectWithSavedCredentials()
-            }
-            .show()
     }
 
     private fun startMonitorService() {
@@ -135,6 +127,9 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val devices = router.getDevices().onEach { device ->
                 nameStore.getCustomName(device.macAddress)?.let { device.customName = it }
+            }
+            if (devices.isEmpty()) {
+                Toast.makeText(this@MainActivity, "No devices found — pull to refresh or check connection", Toast.LENGTH_SHORT).show()
             }
             deviceAdapter.submitList(devices)
             binding.textOnlineCount.text = "${devices.count { it.isOnline }} Online"
