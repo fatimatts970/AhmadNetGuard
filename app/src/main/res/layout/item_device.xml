@@ -35,8 +35,19 @@
             android:textStyle="bold"
             app:layout_constraintStart_toEndOf="@id/icon_device_type"
             app:layout_constraintTop_toTopOf="@id/icon_device_type"
-            app:layout_constraintEnd_toStartOf="@id/btn_block_unblock"
+            app:layout_constraintEnd_toStartOf="@id/btn_rename"
             tools:text="Ahmad's Phone" />
+
+        <ImageButton
+            android:id="@+id/btn_rename"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Rename this device"
+            android:padding="4dp"
+            android:src="@android:drawable/ic_menu_edit"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/text_ip"
@@ -69,19 +80,24 @@
             android:textColor="@color/text_secondary"
             android:textSize="11sp"
             app:layout_constraintStart_toEndOf="@id/icon_device_type"
+            app:layout_constraintEnd_toStartOf="@id/btn_block_unblock"
             app:layout_constraintTop_toBottomOf="@id/text_mac"
             tools:text="WiFi · 1h 18m · -57 dBm · ⚠ possibly sharing hotspot" />
 
-        <ImageButton
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_block_unblock"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/bg_icon_action"
-            android:contentDescription="Block or unblock this device"
-            android:padding="8dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_marginTop="8dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:paddingHorizontal="14dp"
+            android:textAllCaps="false"
+            android:textSize="12sp"
+            app:cornerRadius="10dp"
+            tools:text="Block"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toBottomOf="@id/icon_device_type" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.cardview.widget.CardView>
