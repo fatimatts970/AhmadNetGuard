@@ -1,5 +1,6 @@
 package com.ahmad.netguard.network
 
+import android.util.Base64
 import com.ahmad.netguard.model.Device
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,32 +14,53 @@ class HuaweiRouterAdapter : RouterAdapter {
     private var routerBaseUrl: String = "http://192.168.100.1"
     private var sessionCookie: String? = null
 
-    // Matches: new USERDevice("Domain","IpAddr","MacAddr","Port","IpType","DevType","DevStatus","PortType","Time","HostName", ...)
     private val deviceRegex = Regex(
         "new USERDevice\\(" +
             "\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\"," +
             "\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\""
     )
 
-    // NOTE: login() is still a placeholder — this router's real login uses a
-    // token/hashed-password challenge, not a plain username+password POST.
-    // This needs to be captured separately from the browser's Network tab
-    // during an actual login (see the login.cgi / token request).
     override suspend fun login(routerIp: String, username: String, password: String): Boolean =
         withContext(Dispatchers.IO) {
             routerBaseUrl = "http://$routerIp"
             try {
-                val body = FormBody.Builder()
+                val tokenRequest = Request.Builder()
+                    .url("$routerBaseUrl/asp/GetRandCount.asp")
+                    .post(FormBody.Builder().build())
+                    .build()
+                val tokenResponse = client.newCall(tokenRequest).execute()
+                val token = tokenResponse.body?.string()?.trim() ?: return@withContext false
+
+                val staticCookie = "Cookie=body:Language:english:id=-1"
+                val passwordBase64 = Base64.encodeToString(
+                    password.toByteArray(Charsets.UTF_8),
+                    Base64.NO_WRAP
+                )
+
+                val loginBody = FormBody.Builder()
                     .add("UserName", username)
-                    .add("PassWord", password)
+                    .add("PassWord", passwordBase64)
+                    .add("x.X_HW_Token", token)
                     .build()
-                val request = Request.Builder()
+
+                val loginRequest = Request.Builder()
                     .url("$routerBaseUrl/login.cgi")
-                    .post(body)
+                    .header("Cookie", staticCookie)
+                    .post(loginBody)
                     .build()
-                val response = client.newCall(request).execute()
-                sessionCookie = response.header("Set-Cookie")
-                response.isSuccessful
+
+                val loginResponse = client.newCall(loginRequest).execute()
+
+                val newSessionCookie = loginResponse.headers("Set-Cookie")
+                    .joinToString("; ") { it.substringBefore(";") }
+
+                sessionCookie = if (newSessionCookie.isNotBlank()) {
+                    "$staticCookie; $newSessionCookie"
+                } else {
+                    staticCookie
+                }
+
+                loginResponse.isSuccessful
             } catch (e: Exception) {
                 false
             }
@@ -62,7 +84,7 @@ class HuaweiRouterAdapter : RouterAdapter {
         return deviceRegex.findAll(js).mapNotNull { m ->
             val ipAddr = decodeHexEscapes(m.groupValues[2])
             val macAddr = decodeHexEscapes(m.groupValues[3])
-            val portType = m.groupValues[8] // WIFI / LAN
+            val portType = m.groupValues[8]
             val time = decodeHexEscapes(m.groupValues[9])
             val devStatus = m.groupValues[7]
             val hostName = decodeHexEscapes(m.groupValues[10])
@@ -80,8 +102,6 @@ class HuaweiRouterAdapter : RouterAdapter {
         }.toList()
     }
 
-    // Router encodes special characters as \xHH inside the JS string literals
-    // (e.g. "192\x2e168\x2e100\x2e4" -> "192.168.100.4")
     private fun decodeHexEscapes(raw: String): String {
         val regex = Regex("\\\\x([0-9a-fA-F]{2})")
         return regex.replace(raw) { match ->
@@ -89,7 +109,6 @@ class HuaweiRouterAdapter : RouterAdapter {
         }
     }
 
-    // Time field looks like "2:33" meaning 2 hours 33 minutes connected
     private fun parseHoursColonMinutes(time: String): Int? {
         val parts = time.split(":")
         if (parts.size != 2) return null
