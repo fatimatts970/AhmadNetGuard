@@ -11,6 +11,7 @@ class DeviceListAdapter(
     private val onBlockUnblockClick: (Device) -> Unit,
     private val onDeviceClick: (Device) -> Unit,
     private val onDeviceLongClick: (Device) -> Unit,
+    private val onRenameClick: (Device) -> Unit,
 ) : RecyclerView.Adapter<DeviceListAdapter.DeviceViewHolder>() {
 
     private var devices: List<Device> = emptyList()
@@ -26,7 +27,7 @@ class DeviceListAdapter(
     }
 
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
-        holder.bind(devices[position], onBlockUnblockClick, onDeviceClick, onDeviceLongClick)
+        holder.bind(devices[position], onBlockUnblockClick, onDeviceClick, onDeviceLongClick, onRenameClick)
     }
 
     override fun getItemCount() = devices.size
@@ -39,12 +40,15 @@ class DeviceListAdapter(
             onBlockUnblockClick: (Device) -> Unit,
             onDeviceClick: (Device) -> Unit,
             onDeviceLongClick: (Device) -> Unit,
+            onRenameClick: (Device) -> Unit,
         ) {
             binding.root.setOnClickListener { onDeviceClick(device) }
             binding.root.setOnLongClickListener {
                 onDeviceLongClick(device)
                 true
             }
+            binding.btnRename.setOnClickListener { onRenameClick(device) }
+
             binding.textDeviceName.text = device.displayName()
             binding.textIp.text = device.ipAddress
             binding.textMac.text = device.macAddress
@@ -61,10 +65,17 @@ class DeviceListAdapter(
                 )
             )
 
-            binding.btnBlockUnblock.setImageResource(
-                if (device.isBlocked) android.R.drawable.ic_lock_lock
-                else android.R.drawable.ic_menu_close_clear_cancel
-            )
+            if (device.isBlocked) {
+                binding.btnBlockUnblock.text = "Unblock"
+                binding.btnBlockUnblock.setBackgroundColor(
+                    binding.root.context.getColor(R.color.green_online)
+                )
+            } else {
+                binding.btnBlockUnblock.text = "Block"
+                binding.btnBlockUnblock.setBackgroundColor(
+                    binding.root.context.getColor(R.color.red_blocked)
+                )
+            }
             binding.btnBlockUnblock.setOnClickListener { onBlockUnblockClick(device) }
         }
     }
