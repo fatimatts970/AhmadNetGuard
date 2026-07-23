@@ -1,77 +1,88 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_screen"
-    android:orientation="vertical">
+    android:background="#F8F9FA"
+    tools:context=".ui.MainActivity">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="20dp"
-        android:text="Devices"
-        android:textColor="@color/text_primary"
-        android:textSize="22sp"
-        android:textStyle="bold" />
-
+    <!-- Header Toolbar -->
     <LinearLayout
+        android:id="@+id/headerLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="12dp"
-        android:background="@color/card_white"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:weightSum="2">
+        android:background="#6200EE"
+        android:orientation="vertical"
+        android:padding="20dp">
 
         <TextView
-            android:id="@+id/text_online_count"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:textColor="@color/green_online"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            tools:text="4 Online" />
+            android:text="Ahmad NetGuard"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/text_blocked_count"
-            android:layout_width="0dp"
+            android:id="@+id/tvDeviceCountHeader"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:textColor="@color/red_blocked"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            tools:text="2 Blocked" />
+            android:layout_marginTop="4dp"
+            android:text="Connected Devices: Loading..."
+            android:textColor="#E0E0E0"
+            android:textSize="14sp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/text_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="8dp"
-        android:padding="10dp"
-        android:background="@color/red_bg"
-        android:textColor="@color/red_blocked"
-        android:textSize="12sp"
-        android:visibility="gone"
-        tools:text="Could not connect: 401 Unauthorized" />
-
+    <!-- Swipe Refresh Wrapper -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/swipe_refresh"
+        android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_height="match_parent"
+        android:layout_below="@id/headerLayout">
 
         <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recycler_devices"
+            android:id="@+id/rvDevices"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="12dp"
+            tools:listitem="@layout/item_device" />
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-</LinearLayout>
+    <!-- Empty State / Error Layout -->
+    <LinearLayout
+        android:id="@+id/emptyStateLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/ic_wifi"
+            app:tint="#B0BEC5" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="No Devices Found"
+            android:textColor="#37474F"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Pull down to refresh or check router connection"
+            android:textColor="#78909C"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+</RelativeLayout>
