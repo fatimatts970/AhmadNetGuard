@@ -29,12 +29,12 @@ class ConnectionMonitorService : Service() {
                         val oldDevice = knownDevices[device.macAddress]
                         if (oldDevice == null || oldDevice.isOnline != device.isOnline) {
                             val event = ConnectionEvent(
-                                macAddress = device.macAddress,
-                                displayName = device.displayName,
-                                isOnline = device.isOnline,
-                                timestamp = System.currentTimeMillis()
+                                mac = device.macAddress,
+                                deviceNameAtTime = device.displayName,
+                                eventType = if (device.isOnline) "connected" else "disconnected",
+                                timestampMillis = System.currentTimeMillis()
                             )
-                            db.connectionEventDao().insertEvent(event)
+                            db.connectionEventDao().insert(event)
                         }
                         knownDevices[device.macAddress] = device
                     }
