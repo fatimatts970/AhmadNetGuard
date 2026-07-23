@@ -7,7 +7,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.databinding.ActivityLoginBinding
-import com.ahmad.netguard.network.RouterAdapterFactory
+import com.ahmad.netguard.network.RouterSession
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
 import java.net.InetAddress
@@ -16,7 +16,7 @@ class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private lateinit var credentialStore: RouterCredentialStore
-    private val router = RouterAdapterFactory.create(RouterAdapterFactory.Brand.HUAWEI)
+    private val router = RouterSession.adapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
