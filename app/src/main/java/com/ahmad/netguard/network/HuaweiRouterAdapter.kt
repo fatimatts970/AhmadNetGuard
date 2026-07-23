@@ -142,11 +142,69 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         return@withContext deviceList
     }
 
+    private suspend fun ensureBlacklistModeEnabled(token: String) {
+        try {
+            val formBody = FormBody.Builder()
+                .add("x.MacFilterRight", "1")
+                .add("x.MacFilterPolicy", "1")
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/set.cgi?x=InternetGatewayDevice.X_HW_Security&RequestFile=html/bbsp/macfilter/macfilter.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
-        false
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+            ensureBlacklistModeEnabled(token)
+
+            val formBody = FormBody.Builder()
+                .add("x.SourceMACAddress", mac)
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/add.cgi?x=InternetGatewayDevice.X_HW_Security.MacFilter&RequestFile=html/bbsp/macfilter/macfilter.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
     }
 
     override suspend fun unblockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
-        false
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("x.SourceMACAddress", mac)
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/del.cgi?x=InternetGatewayDevice.X_HW_Security.MacFilter&RequestFile=html/bbsp/macfilter/macfilter.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
     }
 }
