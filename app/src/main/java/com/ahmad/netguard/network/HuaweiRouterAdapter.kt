@@ -3,6 +3,9 @@ package com.ahmad.netguard.network
 import com.ahmad.netguard.model.Device
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -11,9 +14,23 @@ import java.util.concurrent.TimeUnit
 
 class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : RouterAdapter {
 
+    // Router login is session-based (cookie). Without persisting cookies across
+    // requests, every call after login() looks "unauthenticated" to the router,
+    // which is why devices/block/unblock silently failed before.
+    private val sessionCookieStore = mutableMapOf<String, MutableList<Cookie>>()
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .cookieJar(object : CookieJar {
+            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                sessionCookieStore[url.host] = cookies.toMutableList()
+            }
+
+            override fun loadForRequest(url: HttpUrl): List<Cookie> {
+                return sessionCookieStore[url.host] ?: emptyList()
+            }
+        })
         .build()
 
     private var csrfToken: String = ""
@@ -92,14 +109,14 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val xml = response.body?.string() ?: ""
-                    
+
                     val hosts = xml.split("<Host>")
                     for (i in 1 until hosts.size) {
                         val hostXml = hosts[i]
                         val name = hostXml.substringAfter("<HostName>", "Unknown Device").substringBefore("</HostName>")
                         val ip = hostXml.substringAfter("<IPAddress>", "0.0.0.0").substringBefore("</IPAddress>")
                         val mac = hostXml.substringAfter("<MACAddress>", "").substringBefore("</MACAddress>")
-                        
+
                         val isHotspotDetected = checkHotspotSharing(mac)
 
                         if (mac.isNotEmpty()) {
