@@ -1,103 +1,101 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="16dp"
+    android:layout_marginHorizontal="6dp"
     android:layout_marginVertical="6dp"
     app:cardCornerRadius="16dp"
-    app:cardElevation="0dp"
-    app:cardBackgroundColor="@color/card_white">
+    app:cardElevation="2dp"
+    app:strokeColor="#E0E0E0"
+    app:strokeWidth="1dp">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="14dp">
+        android:padding="16dp">
 
+        <!-- Device Icon -->
         <ImageView
-            android:id="@+id/icon_device_type"
+            android:id="@+id/ivDeviceIcon"
             android:layout_width="44dp"
             android:layout_height="44dp"
-            android:background="@drawable/bg_icon_rounded"
+            android:layout_centerVertical="true"
+            android:background="#E8EAF6"
             android:padding="10dp"
             android:src="@drawable/ic_wifi"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:tint="#3F51B5" />
 
-        <TextView
-            android:id="@+id/text_device_name"
-            android:layout_width="0dp"
+        <!-- Device Info -->
+        <LinearLayout
+            android:id="@+id/infoContainer"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp"
-            android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@id/icon_device_type"
-            app:layout_constraintTop_toTopOf="@id/icon_device_type"
-            app:layout_constraintEnd_toStartOf="@id/btn_rename"
-            tools:text="Ahmad's Phone" />
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="8dp"
+            android:layout_marginStart="14dp"
+            android:layout_toEndOf="@id/ivDeviceIcon"
+            android:layout_toStartOf="@id/btnBlock"
+            android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/btn_rename"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="Rename this device"
-            android:padding="4dp"
-            android:src="@android:drawable/ic_menu_edit"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            <TextView
+                android:id="@+id/tvDeviceName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Galaxy S22"
+                android:textColor="#212121"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/text_ip"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:textColor="@color/green_online"
-            android:textSize="12sp"
-            app:layout_constraintStart_toEndOf="@id/icon_device_type"
-            app:layout_constraintTop_toBottomOf="@id/text_device_name"
-            tools:text="192.168.100.10" />
+            <TextView
+                android:id="@+id/tvIpAddress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="192.168.100.4"
+                android:textColor="#616161"
+                android:textSize="13sp" />
 
-        <TextView
-            android:id="@+id/text_mac"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp"
-            app:layout_constraintStart_toEndOf="@id/icon_device_type"
-            app:layout_constraintTop_toBottomOf="@id/text_ip"
-            tools:text="42:ec:40:8b:1a:e8" />
+            <TextView
+                android:id="@+id/tvMacAddress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AA:BB:CC:DD:EE:FF"
+                android:textColor="#9E9E9E"
+                android:textSize="11sp" />
 
-        <TextView
-            android:id="@+id/text_meta"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp"
-            app:layout_constraintStart_toEndOf="@id/icon_device_type"
-            app:layout_constraintEnd_toStartOf="@id/btn_block_unblock"
-            app:layout_constraintTop_toBottomOf="@id/text_mac"
-            tools:text="WiFi · 1h 18m · -57 dBm · ⚠ possibly sharing hotspot" />
+            <!-- Hotspot Suspicion Warning Tag -->
+            <TextView
+                android:id="@+id/tvHotspotBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="#FFEBEE"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:text="⚠️ Hotspot Active (Suspicious)"
+                android:textColor="#D32F2F"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
 
+        <!-- Cute Block / Unblock Action Button -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_block_unblock"
+            android:id="@+id/btnBlock"
             android:layout_width="wrap_content"
-            android:layout_height="34dp"
-            android:layout_marginTop="8dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:paddingHorizontal="14dp"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:backgroundTint="#EF4444"
+            android:minWidth="80dp"
+            android:text="Block"
             android:textAllCaps="false"
+            android:textColor="#FFFFFF"
             android:textSize="12sp"
-            app:cornerRadius="10dp"
-            tools:text="Block"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/icon_device_type" />
+            app:cornerRadius="20dp" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</androidx.cardview.widget.CardView>
+    </RelativeLayout>
+</com.google.android.material.card.MaterialCardView>
