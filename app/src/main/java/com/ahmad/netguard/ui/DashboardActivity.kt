@@ -1,6 +1,7 @@
 package com.ahmad.netguard.ui
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.TextView
 import android.widget.Toast
@@ -8,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
+import com.ahmad.netguard.history.ConnectionMonitorService
 import com.ahmad.netguard.network.HuaweiRouterAdapter
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
@@ -49,7 +51,17 @@ class DashboardActivity : AppCompatActivity() {
             finish()
         }
 
+        startHistoryTracking()
         loadDashboardData()
+    }
+
+    private fun startHistoryTracking() {
+        val serviceIntent = Intent(this, ConnectionMonitorService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
     }
 
     private fun loadDashboardData() {
