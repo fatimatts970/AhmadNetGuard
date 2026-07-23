@@ -9,7 +9,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
-class HuaweiRouterAdapter(private val routerIp: String = "192.168.100.1") {
+class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : RouterAdapter {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -17,6 +17,50 @@ class HuaweiRouterAdapter(private val routerIp: String = "192.168.100.1") {
         .build()
 
     private var csrfToken: String = ""
+    private var username: String = ""
+    private var password: String = ""
+
+    override suspend fun login(routerIp: String, username: String, password: String): Boolean =
+        withContext(Dispatchers.IO) {
+            this@HuaweiRouterAdapter.routerIp = routerIp
+            this@HuaweiRouterAdapter.username = username
+            this@HuaweiRouterAdapter.password = password
+            try {
+                val token = fetchCsrfToken()
+                if (token.isEmpty()) return@withContext false
+
+                val loginPayload = """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <request>
+                        <Username>$username</Username>
+                        <Password>$password</Password>
+                        <password_type>4</password_type>
+                    </request>
+                """.trimIndent()
+
+                val request = Request.Builder()
+                    .url("http://$routerIp/api/user/login")
+                    .addHeader("__RequestVerificationToken", token)
+                    .post(loginPayload.toRequestBody("application/xml".toMediaType()))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    return@withContext response.isSuccessful
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return@withContext false
+            }
+        }
+
+    override suspend fun getDevices(): List<Device> = getConnectedDevices()
+
+    override suspend fun renameDevice(mac: String, newName: String) {
+        // Huawei firmware does not expose a rename endpoint; names are stored
+        // locally via DeviceNameStore and merged in at the UI layer.
+    }
+
+    override fun brandName(): String = "Huawei"
 
     suspend fun fetchCsrfToken(): String = withContext(Dispatchers.IO) {
         try {
@@ -83,7 +127,8 @@ class HuaweiRouterAdapter(private val routerIp: String = "192.168.100.1") {
         return false
     }
 
-    suspend fun blockDevice(macAddress: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
+        val macAddress = mac
         try {
             val token = if (csrfToken.isEmpty()) fetchCsrfToken() else csrfToken
             val xmlPayload = """
@@ -114,7 +159,8 @@ class HuaweiRouterAdapter(private val routerIp: String = "192.168.100.1") {
         }
     }
 
-    suspend fun unblockDevice(macAddress: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun unblockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
+        val macAddress = mac
         try {
             val token = if (csrfToken.isEmpty()) fetchCsrfToken() else csrfToken
             val xmlPayload = """
