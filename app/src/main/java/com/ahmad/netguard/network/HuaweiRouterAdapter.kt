@@ -10,13 +10,11 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : RouterAdapter {
 
-    // Router login is session-based (cookie). Without persisting cookies across
-    // requests, every call after login() looks "unauthenticated" to the router,
-    // which is why devices/block/unblock silently failed before.
     private val sessionCookieStore = mutableMapOf<String, MutableList<Cookie>>()
 
     private val client = OkHttpClient.Builder()
@@ -37,6 +35,12 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     private var username: String = ""
     private var password: String = ""
 
+    private fun hashPassword(plain: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(plain.toByteArray(Charsets.UTF_8))
+        val hex = digest.joinToString("") { "%02x".format(it) }
+        return android.util.Base64.encodeToString(hex.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+    }
+
     override suspend fun login(routerIp: String, username: String, password: String): Boolean =
         withContext(Dispatchers.IO) {
             this@HuaweiRouterAdapter.routerIp = routerIp
@@ -50,7 +54,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
                     <?xml version="1.0" encoding="UTF-8"?>
                     <request>
                         <Username>$username</Username>
-                        <Password>$password</Password>
+                        <Password>${hashPassword(password)}</Password>
                         <password_type>4</password_type>
                     </request>
                 """.trimIndent()
@@ -62,7 +66,8 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
                     .build()
 
                 client.newCall(request).execute().use { response ->
-                    return@withContext response.isSuccessful
+                    val body = response.body?.string() ?: ""
+                    return@withContext response.isSuccessful && !body.contains("<error>")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -82,14 +87,18 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     suspend fun fetchCsrfToken(): String = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
-                .url("http://$routerIp/api/webserver/token")
+                .url("http://$routerIp/api/webserver/SesTokInfo")
                 .get()
                 .build()
 
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string() ?: ""
-                if (body.contains("<token>")) {
-                    csrfToken = body.substringAfter("<token>").substringBefore("</token>")
+                csrfToken = when {
+                    body.contains("<TokInfo>") ->
+                        body.substringAfter("<TokInfo>").substringBefore("</TokInfo>")
+                    body.contains("<token>") ->
+                        body.substringAfter("<token>").substringBefore("</token>")
+                    else -> csrfToken
                 }
             }
         } catch (e: Exception) {
