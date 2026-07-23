@@ -4,13 +4,13 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import com.ahmad.netguard.model.Device
-import com.ahmad.netguard.network.HuaweiRouterAdapter
+import com.ahmad.netguard.network.RouterSession
 import kotlinx.coroutines.*
 
 class ConnectionMonitorService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val routerAdapter = HuaweiRouterAdapter()
+    private val routerAdapter = RouterSession.adapter
     private val knownDevices = mutableMapOf<String, Device>()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -22,7 +22,7 @@ class ConnectionMonitorService : Service() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    val currentDevices = routerAdapter.getConnectedDevices()
+                    val currentDevices = routerAdapter.getDevices()
                     val db = AppDatabase.getInstance(applicationContext)
 
                     for (device in currentDevices) {
