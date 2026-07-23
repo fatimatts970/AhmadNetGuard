@@ -46,12 +46,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecyclerView() {
         rvDevices.layoutManager = LinearLayoutManager(this)
-        
+
         deviceListAdapter = DeviceListAdapter(
             devices = deviceList,
             onBlockClick = { device -> handleBlockToggle(device) },
-            onItemClick = { device -> 
-                Toast.makeText(this, "Opening History for ${device.ipAddress}", Toast.LENGTH_SHORT).show()
+            onItemClick = { device ->
+                HistoryActivity.start(this, device.macAddress, device.displayName)
             }
         )
         rvDevices.adapter = deviceListAdapter
@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleBlockToggle(device: Device) {
         lifecycleScope.launch {
             Toast.makeText(this@MainActivity, "Processing request...", Toast.LENGTH_SHORT).show()
-            
+
             val success = if (device.isBlocked) {
                 routerAdapter.unblockDevice(device.macAddress)
             } else {
