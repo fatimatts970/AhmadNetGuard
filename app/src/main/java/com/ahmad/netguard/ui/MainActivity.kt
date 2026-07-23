@@ -51,7 +51,7 @@ class MainActivity : AppCompatActivity() {
             devices = deviceList,
             onBlockClick = { device -> handleBlockToggle(device) },
             onItemClick = { device -> 
-                Toast.makeText(this, "Opening History for ${device.ip}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Opening History for ${device.ipAddress}", Toast.LENGTH_SHORT).show()
             }
         )
         rvDevices.adapter = deviceListAdapter
@@ -85,16 +85,16 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this@MainActivity, "Processing request...", Toast.LENGTH_SHORT).show()
             
             val success = if (device.isBlocked) {
-                routerAdapter.unblockDevice(device.mac)
+                routerAdapter.unblockDevice(device.macAddress)
             } else {
-                routerAdapter.blockDevice(device.mac)
+                routerAdapter.blockDevice(device.macAddress)
             }
 
             if (success) {
                 device.isBlocked = !device.isBlocked
                 deviceListAdapter.notifyDataSetChanged()
                 val statusMsg = if (device.isBlocked) "Blocked" else "Unblocked"
-                Toast.makeText(this@MainActivity, "${device.name} $statusMsg successfully!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "${device.displayName} $statusMsg successfully!", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this@MainActivity, "Action failed! Check router connection.", Toast.LENGTH_SHORT).show()
             }
