@@ -5,12 +5,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
 import okhttp3.CookieJar
+import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : RouterAdapter {
@@ -20,6 +20,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .followRedirects(false)
         .cookieJar(object : CookieJar {
             override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
                 sessionCookieStore[url.host] = cookies.toMutableList()
@@ -35,10 +36,24 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     private var username: String = ""
     private var password: String = ""
 
-    private fun hashPassword(plain: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(plain.toByteArray(Charsets.UTF_8))
-        val hex = digest.joinToString("") { "%02x".format(it) }
-        return android.util.Base64.encodeToString(hex.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+    // HG8326R real login flow (confirmed from login.asp source):
+    //   1. GET  /asp/GetRandCount.asp  -> plain-text anti-replay token
+    //   2. POST /login.cgi (form-urlencoded) with UserName, Base64(Password),
+    //      and x.X_HW_Token = the token from step 1.
+    private suspend fun fetchHwToken(): String = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("http://$routerIp/asp/GetRandCount.asp")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                csrfToken = response.body?.string()?.trim() ?: ""
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return@withContext csrfToken
     }
 
     override suspend fun login(routerIp: String, username: String, password: String): Boolean =
@@ -47,27 +62,30 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
             this@HuaweiRouterAdapter.username = username
             this@HuaweiRouterAdapter.password = password
             try {
-                val token = fetchCsrfToken()
+                val token = fetchHwToken()
                 if (token.isEmpty()) return@withContext false
 
-                val loginPayload = """
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <request>
-                        <Username>$username</Username>
-                        <Password>${hashPassword(password)}</Password>
-                        <password_type>4</password_type>
-                    </request>
-                """.trimIndent()
+                val encodedPassword = android.util.Base64.encodeToString(
+                    password.toByteArray(Charsets.UTF_8),
+                    android.util.Base64.NO_WRAP
+                )
+
+                val formBody = FormBody.Builder()
+                    .add("UserName", username)
+                    .add("PassWord", encodedPassword)
+                    .add("x.X_HW_Token", token)
+                    .build()
 
                 val request = Request.Builder()
-                    .url("http://$routerIp/api/user/login")
-                    .addHeader("__RequestVerificationToken", token)
-                    .post(loginPayload.toRequestBody("application/xml".toMediaType()))
+                    .url("http://$routerIp/login.cgi")
+                    .post(formBody)
                     .build()
 
                 client.newCall(request).execute().use { response ->
-                    val body = response.body?.string() ?: ""
-                    return@withContext response.isSuccessful && !body.contains("<error>")
+                    val location = response.header("Location") ?: ""
+                    val success = response.code in 300..399 &&
+                        !location.contains("login.asp", ignoreCase = true)
+                    return@withContext success
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -83,29 +101,6 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     }
 
     override fun brandName(): String = "Huawei"
-
-    suspend fun fetchCsrfToken(): String = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/api/webserver/SesTokInfo")
-                .get()
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: ""
-                csrfToken = when {
-                    body.contains("<TokInfo>") ->
-                        body.substringAfter("<TokInfo>").substringBefore("</TokInfo>")
-                    body.contains("<token>") ->
-                        body.substringAfter("<token>").substringBefore("</token>")
-                    else -> csrfToken
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return@withContext csrfToken
-    }
 
     suspend fun getConnectedDevices(): List<Device> = withContext(Dispatchers.IO) {
         val deviceList = mutableListOf<Device>()
@@ -156,7 +151,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
         val macAddress = mac
         try {
-            val token = if (csrfToken.isEmpty()) fetchCsrfToken() else csrfToken
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
             val xmlPayload = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <request>
@@ -188,7 +183,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     override suspend fun unblockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
         val macAddress = mac
         try {
-            val token = if (csrfToken.isEmpty()) fetchCsrfToken() else csrfToken
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
             val xmlPayload = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <request>
