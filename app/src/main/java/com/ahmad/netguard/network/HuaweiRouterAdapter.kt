@@ -40,7 +40,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         try {
             val request = Request.Builder()
                 .url("http://$routerIp/asp/GetRandCount.asp")
-                .get()
+                .post(FormBody.Builder().build())
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -52,6 +52,18 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         return@withContext csrfToken
     }
 
+    private fun injectPreLoginCookie(routerIp: String) {
+        val cookie = Cookie.Builder()
+            .name("Cookie")
+            .value("body:Language:english:id=-1")
+            .domain(routerIp)
+            .path("/")
+            .build()
+        val existing = sessionCookieStore.getOrPut(routerIp) { mutableListOf() }
+        existing.removeAll { it.name == "Cookie" }
+        existing.add(cookie)
+    }
+
     override suspend fun login(routerIp: String, username: String, password: String): Boolean =
         withContext(Dispatchers.IO) {
             this@HuaweiRouterAdapter.routerIp = routerIp
@@ -60,6 +72,8 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
             try {
                 val token = fetchHwToken()
                 if (token.isEmpty()) return@withContext false
+
+                injectPreLoginCookie(routerIp)
 
                 val encodedPassword = android.util.Base64.encodeToString(
                     password.toByteArray(Charsets.UTF_8),
