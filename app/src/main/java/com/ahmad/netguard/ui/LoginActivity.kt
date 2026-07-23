@@ -45,6 +45,26 @@ class LoginActivity : AppCompatActivity() {
         binding.btnConnect.setOnClickListener {
             attemptLogin(useSaved = false)
         }
+
+        setupPasswordToggle()
+    }
+
+    private var isPasswordVisible = false
+
+    private fun setupPasswordToggle() {
+        binding.btnTogglePassword.setOnClickListener {
+            isPasswordVisible = !isPasswordVisible
+            if (isPasswordVisible) {
+                binding.inputPassword.inputType =
+                    android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                binding.btnTogglePassword.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            } else {
+                binding.inputPassword.inputType =
+                    android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                binding.btnTogglePassword.setImageResource(android.R.drawable.ic_menu_view)
+            }
+            binding.inputPassword.setSelection(binding.inputPassword.text.length)
+        }
     }
 
     private fun detectGatewayIp(): String? {
