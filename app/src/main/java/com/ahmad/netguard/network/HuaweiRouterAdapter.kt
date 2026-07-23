@@ -1,152 +1,146 @@
 package com.ahmad.netguard.network
 
-import android.util.Base64
 import com.ahmad.netguard.model.Device
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
-class HuaweiRouterAdapter : RouterAdapter {
+class HuaweiRouterAdapter(private val routerIp: String = "192.168.100.1") {
 
-    private val client = OkHttpClient()
-    private var routerBaseUrl: String = "http://192.168.100.1"
-    private var sessionCookie: String? = null
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
 
-    private val deviceRegex = Regex(
-        "new USERDevice\\(" +
-            "\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\"," +
-            "\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\""
-    )
+    private var csrfToken: String = ""
 
-    override suspend fun login(routerIp: String, username: String, password: String): Boolean =
-        withContext(Dispatchers.IO) {
-            routerBaseUrl = "http://$routerIp"
-            try {
-                val tokenRequest = Request.Builder()
-                    .url("$routerBaseUrl/asp/GetRandCount.asp")
-                    .post(FormBody.Builder().build())
-                    .build()
-                val tokenResponse = client.newCall(tokenRequest).execute()
-                val token = tokenResponse.body?.string()?.trim() ?: return@withContext false
+    suspend fun fetchCsrfToken(): String = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("http://$routerIp/api/webserver/token")
+                .get()
+                .build()
 
-                val staticCookie = "Cookie=body:Language:english:id=-1"
-                val passwordBase64 = Base64.encodeToString(
-                    password.toByteArray(Charsets.UTF_8),
-                    Base64.NO_WRAP
-                )
-
-                val loginBody = FormBody.Builder()
-                    .add("UserName", username)
-                    .add("PassWord", passwordBase64)
-                    .add("x.X_HW_Token", token)
-                    .build()
-
-                val loginRequest = Request.Builder()
-                    .url("$routerBaseUrl/login.cgi")
-                    .header("Cookie", staticCookie)
-                    .post(loginBody)
-                    .build()
-
-                val loginResponse = client.newCall(loginRequest).execute()
-
-                val newSessionCookie = loginResponse.headers("Set-Cookie")
-                    .joinToString("; ") { it.substringBefore(";") }
-
-                sessionCookie = if (newSessionCookie.isNotBlank()) {
-                    "$staticCookie; $newSessionCookie"
-                } else {
-                    staticCookie
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: ""
+                if (body.contains("<token>")) {
+                    csrfToken = body.substringAfter("<token>").substringBefore("</token>")
                 }
-
-                loginResponse.isSuccessful
-            } catch (e: Exception) {
-                false
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+        return@withContext csrfToken
+    }
 
-    override suspend fun getDevices(): List<Device> = withContext(Dispatchers.IO) {
+    suspend fun getConnectedDevices(): List<Device> = withContext(Dispatchers.IO) {
+        val deviceList = mutableListOf<Device>()
         try {
             val request = Request.Builder()
-                .url("$routerBaseUrl/html/bbsp/common/GetLanUserDevInfo.asp")
-                .header("Cookie", sessionCookie ?: "")
+                .url("http://$routerIp/api/monitoring/user-devices")
+                .get()
                 .build()
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: return@withContext emptyList()
-            parseDeviceListJs(body)
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val xml = response.body?.string() ?: ""
+                    
+                    val hosts = xml.split("<Host>")
+                    for (i in 1 until hosts.size) {
+                        val hostXml = hosts[i]
+                        val name = hostXml.substringAfter("<HostName>", "Unknown Device").substringBefore("</HostName>")
+                        val ip = hostXml.substringAfter("<IPAddress>", "0.0.0.0").substringBefore("</IPAddress>")
+                        val mac = hostXml.substringAfter("<MACAddress>", "").substringBefore("</MACAddress>")
+                        
+                        val isHotspotDetected = checkHotspotSharing(mac)
+
+                        if (mac.isNotEmpty()) {
+                            deviceList.add(
+                                Device(
+                                    name = name,
+                                    ip = ip,
+                                    mac = mac,
+                                    isBlocked = false,
+                                    isHotspotActive = isHotspotDetected
+                                )
+                            )
+                        }
+                    }
+                }
+            }
         } catch (e: Exception) {
-            emptyList()
+            e.printStackTrace()
         }
+        return@withContext deviceList
     }
 
-    private fun parseDeviceListJs(js: String): List<Device> {
-        return deviceRegex.findAll(js).mapNotNull { m ->
-            val ipAddr = decodeHexEscapes(m.groupValues[2])
-            val macAddr = decodeHexEscapes(m.groupValues[3])
-            val portType = m.groupValues[8]
-            val time = decodeHexEscapes(m.groupValues[9])
-            val devStatus = m.groupValues[7]
-            val hostName = decodeHexEscapes(m.groupValues[10])
-
-            if (macAddr.isBlank()) return@mapNotNull null
-
-            Device(
-                macAddress = macAddr,
-                ipAddress = ipAddr,
-                routerName = hostName.ifBlank { "Unknown device" },
-                isOnline = devStatus.equals("Online", ignoreCase = true),
-                connectionType = if (portType.equals("WIFI", ignoreCase = true)) "WiFi" else "LAN",
-                connectedSinceMinutes = parseHoursColonMinutes(time),
-            )
-        }.toList()
+    private fun checkHotspotSharing(mac: String): Boolean {
+        return false
     }
 
-    private fun decodeHexEscapes(raw: String): String {
-        val regex = Regex("\\\\x([0-9a-fA-F]{2})")
-        return regex.replace(raw) { match ->
-            match.groupValues[1].toInt(16).toChar().toString()
-        }
-    }
-
-    private fun parseHoursColonMinutes(time: String): Int? {
-        val parts = time.split(":")
-        if (parts.size != 2) return null
-        val hours = parts[0].toIntOrNull() ?: return null
-        val minutes = parts[1].toIntOrNull() ?: return null
-        return hours * 60 + minutes
-    }
-
-    override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun blockDevice(macAddress: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val body = FormBody.Builder().add("mac", mac).add("action", "block").build()
+            val token = if (csrfToken.isEmpty()) fetchCsrfToken() else csrfToken
+            val xmlPayload = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <request>
+                    <MACFilterControl>1</MACFilterControl>
+                    <MACFilterPolicy>1</MACFilterPolicy>
+                    <Hosts>
+                        <Host>
+                            <MAC>$macAddress</MAC>
+                        </Host>
+                    </Hosts>
+                </request>
+            """.trimIndent()
+
             val request = Request.Builder()
-                .url("$routerBaseUrl/macfilter.cgi")
-                .header("Cookie", sessionCookie ?: "")
-                .post(body)
+                .url("http://$routerIp/api/security/mac-filter")
+                .addHeader("__RequestVerificationToken", token)
+                .post(xmlPayload.toRequestBody("application/xml".toMediaType()))
                 .build()
-            client.newCall(request).execute().isSuccessful
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
         } catch (e: Exception) {
-            false
+            e.printStackTrace()
+            return@withContext false
         }
     }
 
-    override suspend fun unblockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun unblockDevice(macAddress: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val body = FormBody.Builder().add("mac", mac).add("action", "unblock").build()
+            val token = if (csrfToken.isEmpty()) fetchCsrfToken() else csrfToken
+            val xmlPayload = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <request>
+                    <MACFilterControl>0</MACFilterControl>
+                    <MACFilterPolicy>1</MACFilterPolicy>
+                    <Hosts>
+                        <Host>
+                            <MAC>$macAddress</MAC>
+                        </Host>
+                    </Hosts>
+                </request>
+            """.trimIndent()
+
             val request = Request.Builder()
-                .url("$routerBaseUrl/macfilter.cgi")
-                .header("Cookie", sessionCookie ?: "")
-                .post(body)
+                .url("http://$routerIp/api/security/mac-filter")
+                .addHeader("__RequestVerificationToken", token)
+                .post(xmlPayload.toRequestBody("application/xml".toMediaType()))
                 .build()
-            client.newCall(request).execute().isSuccessful
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
         } catch (e: Exception) {
-            false
+            e.printStackTrace()
+            return@withContext false
         }
     }
-
-    override suspend fun renameDevice(mac: String, newName: String) {
-    }
-
-    override fun brandName(): String = "Huawei"
 }
