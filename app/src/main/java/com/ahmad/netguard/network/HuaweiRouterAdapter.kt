@@ -61,9 +61,10 @@ class HuaweiRouterAdapter(private val routerIp: String = "192.168.100.1") {
                         if (mac.isNotEmpty()) {
                             deviceList.add(
                                 Device(
-                                    name = name,
-                                    ip = ip,
-                                    mac = mac,
+                                    macAddress = mac,
+                                    displayName = name,
+                                    ipAddress = ip,
+                                    isOnline = true,
                                     isBlocked = false,
                                     isHotspotActive = isHotspotDetected
                                 )
