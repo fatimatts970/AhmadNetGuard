@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.model.Device
-import com.ahmad.netguard.network.HuaweiRouterAdapter
+import com.ahmad.netguard.network.RouterSession
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var emptyStateLayout: LinearLayout
     private lateinit var tvDeviceCountHeader: TextView
 
-    private val routerAdapter = HuaweiRouterAdapter()
+    private val routerAdapter = RouterSession.adapter
     private val deviceList = mutableListOf<Device>()
     private lateinit var deviceListAdapter: DeviceListAdapter
 
@@ -61,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         swipeRefreshLayout.isRefreshing = true
 
         lifecycleScope.launch {
-            val freshDevices = routerAdapter.getConnectedDevices()
+            val freshDevices = routerAdapter.getDevices()
             swipeRefreshLayout.isRefreshing = false
 
             deviceList.clear()
