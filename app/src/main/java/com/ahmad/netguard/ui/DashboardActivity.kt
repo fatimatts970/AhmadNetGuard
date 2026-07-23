@@ -10,13 +10,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.history.ConnectionMonitorService
-import com.ahmad.netguard.network.HuaweiRouterAdapter
+import com.ahmad.netguard.network.RouterSession
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
 
 class DashboardActivity : AppCompatActivity() {
 
-    private val routerAdapter = HuaweiRouterAdapter()
+    private val routerAdapter = RouterSession.adapter
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var tvOnlineBadge: TextView
 
@@ -68,7 +68,7 @@ class DashboardActivity : AppCompatActivity() {
         swipeRefresh.isRefreshing = true
         lifecycleScope.launch {
             try {
-                val devices = routerAdapter.getConnectedDevices()
+                val devices = routerAdapter.getDevices()
                 val onlineDevices = devices.filter { it.isOnline }
                 tvOnlineBadge.text = "${onlineDevices.size} online"
             } catch (e: Exception) {
