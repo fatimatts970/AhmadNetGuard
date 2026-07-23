@@ -33,9 +33,9 @@ class DeviceListAdapter(
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
         val device = devices[position]
 
-        holder.tvName.text = device.name
-        holder.tvIp.text = device.ip
-        holder.tvMac.text = device.mac
+        holder.tvName.text = device.displayName
+        holder.tvIp.text = device.ipAddress
+        holder.tvMac.text = device.macAddress
 
         if (device.isHotspotActive) {
             holder.tvHotspotBadge.visibility = View.VISIBLE
