@@ -36,10 +36,6 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
     private var username: String = ""
     private var password: String = ""
 
-    // HG8326R real login flow (confirmed from login.asp source):
-    //   1. GET  /asp/GetRandCount.asp  -> plain-text anti-replay token
-    //   2. POST /login.cgi (form-urlencoded) with UserName, Base64(Password),
-    //      and x.X_HW_Token = the token from step 1.
     private suspend fun fetchHwToken(): String = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
@@ -106,36 +102,38 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         val deviceList = mutableListOf<Device>()
         try {
             val request = Request.Builder()
-                .url("http://$routerIp/api/monitoring/user-devices")
+                .url("http://$routerIp/html/bbsp/common/GetLanUserDevInfo.asp")
                 .get()
                 .build()
 
             client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val xml = response.body?.string() ?: ""
+                if (!response.isSuccessful) return@use
+                val js = response.body?.string() ?: ""
 
-                    val hosts = xml.split("<Host>")
-                    for (i in 1 until hosts.size) {
-                        val hostXml = hosts[i]
-                        val name = hostXml.substringAfter("<HostName>", "Unknown Device").substringBefore("</HostName>")
-                        val ip = hostXml.substringAfter("<IPAddress>", "0.0.0.0").substringBefore("</IPAddress>")
-                        val mac = hostXml.substringAfter("<MACAddress>", "").substringBefore("</MACAddress>")
+                val macRegex = Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
+                val ipRegex = Regex("\\b\\d{1,3}(\\.\\d{1,3}){3}\\b")
+                val entryRegex = Regex("new USERDevice\\(([^)]*)\\)")
 
-                        val isHotspotDetected = checkHotspotSharing(mac)
+                for (match in entryRegex.findAll(js)) {
+                    val argsRaw = match.groupValues[1]
+                    val args = argsRaw.split(",").map { it.trim().trim('"', '\'') }
 
-                        if (mac.isNotEmpty()) {
-                            deviceList.add(
-                                Device(
-                                    macAddress = mac,
-                                    displayName = name,
-                                    ipAddress = ip,
-                                    isOnline = true,
-                                    isBlocked = false,
-                                    isHotspotActive = isHotspotDetected
-                                )
-                            )
-                        }
-                    }
+                    val mac = args.firstOrNull { macRegex.matches(it) } ?: continue
+                    val ip = args.firstOrNull { ipRegex.matches(it) } ?: "0.0.0.0"
+                    val name = args.firstOrNull {
+                        it.isNotBlank() && it != mac && it != ip && !it.matches(Regex("^[01]$"))
+                    } ?: "Unknown Device"
+
+                    deviceList.add(
+                        Device(
+                            macAddress = mac,
+                            displayName = name,
+                            ipAddress = ip,
+                            isOnline = true,
+                            isBlocked = false,
+                            isHotspotActive = false
+                        )
+                    )
                 }
             }
         } catch (e: Exception) {
@@ -144,71 +142,11 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         return@withContext deviceList
     }
 
-    private fun checkHotspotSharing(mac: String): Boolean {
-        return false
-    }
-
     override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
-        val macAddress = mac
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-            val xmlPayload = """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <request>
-                    <MACFilterControl>1</MACFilterControl>
-                    <MACFilterPolicy>1</MACFilterPolicy>
-                    <Hosts>
-                        <Host>
-                            <MAC>$macAddress</MAC>
-                        </Host>
-                    </Hosts>
-                </request>
-            """.trimIndent()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/api/security/mac-filter")
-                .addHeader("__RequestVerificationToken", token)
-                .post(xmlPayload.toRequestBody("application/xml".toMediaType()))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
+        false
     }
 
     override suspend fun unblockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
-        val macAddress = mac
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-            val xmlPayload = """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <request>
-                    <MACFilterControl>0</MACFilterControl>
-                    <MACFilterPolicy>1</MACFilterPolicy>
-                    <Hosts>
-                        <Host>
-                            <MAC>$macAddress</MAC>
-                        </Host>
-                    </Hosts>
-                </request>
-            """.trimIndent()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/api/security/mac-filter")
-                .addHeader("__RequestVerificationToken", token)
-                .post(xmlPayload.toRequestBody("application/xml".toMediaType()))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
+        false
     }
 }
