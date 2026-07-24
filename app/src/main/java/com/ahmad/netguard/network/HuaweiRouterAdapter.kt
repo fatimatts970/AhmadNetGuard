@@ -17,10 +17,14 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
 
     private val sessionCookieStore = mutableMapOf<String, MutableList<Cookie>>()
 
+    private val browserUserAgent =
+        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
-        .followRedirects(false)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .cookieJar(object : CookieJar {
             override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
                 sessionCookieStore[url.host] = cookies.toMutableList()
@@ -70,6 +74,13 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
             this@HuaweiRouterAdapter.username = username
             this@HuaweiRouterAdapter.password = password
             try {
+                val initRequest = Request.Builder()
+                    .url("http://$routerIp/login.asp")
+                    .header("User-Agent", browserUserAgent)
+                    .get()
+                    .build()
+                client.newCall(initRequest).execute().close()
+
                 val token = fetchHwToken()
                 if (token.isEmpty()) return@withContext false
 
@@ -86,22 +97,50 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
                     .add("x.X_HW_Token", token)
                     .build()
 
-                val request = Request.Builder()
+                val loginRequest = Request.Builder()
                     .url("http://$routerIp/login.cgi")
+                    .header("User-Agent", browserUserAgent)
+                    .header("Referer", "http://$routerIp/login.asp")
+                    .header("Origin", "http://$routerIp")
                     .post(formBody)
                     .build()
 
-                client.newCall(request).execute().use { response ->
-                    val location = response.header("Location") ?: ""
-                    val success = response.code in 300..399 &&
-                        !location.contains("login.asp", ignoreCase = true)
-                    return@withContext success
+                client.newCall(loginRequest).execute().close()
+
+                val checkRequest = Request.Builder()
+                    .url("http://$routerIp/index.asp")
+                    .header("User-Agent", browserUserAgent)
+                    .get()
+                    .build()
+
+                client.newCall(checkRequest).execute().use { response ->
+                    val finalUrl = response.request.url.toString()
+                    val body = response.body?.string() ?: ""
+                    val bouncedToLogin = finalUrl.contains("login.asp", ignoreCase = true) ||
+                        body.contains("login.asp", ignoreCase = true)
+                    return@withContext response.isSuccessful && !bouncedToLogin
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 return@withContext false
             }
         }
+
+    suspend fun isSessionAlive(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("http://$routerIp/html/ssmp/common/refreshTime.asp")
+                .header("User-Agent", browserUserAgent)
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                (response.body?.string()?.trim() ?: "") == "1"
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 
     override suspend fun getDevices(): List<Device> = getConnectedDevices()
 
