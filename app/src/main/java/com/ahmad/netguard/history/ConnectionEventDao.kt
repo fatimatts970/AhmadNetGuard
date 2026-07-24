@@ -21,4 +21,7 @@ interface ConnectionEventDao {
 
     @Query("SELECT * FROM connection_events WHERE mac = :mac ORDER BY timestampMillis DESC LIMIT 1")
     suspend fun getLastEventForDevice(mac: String): ConnectionEvent?
+
+    @Query("SELECT * FROM connection_events WHERE mac = :mac ORDER BY timestampMillis ASC LIMIT 1")
+    suspend fun getFirstEventForDevice(mac: String): ConnectionEvent?
 }
