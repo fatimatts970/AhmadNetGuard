@@ -15,7 +15,6 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- Device Icon -->
         <ImageView
             android:id="@+id/ivDeviceIcon"
             android:layout_width="44dp"
@@ -26,7 +25,15 @@
             android:src="@drawable/ic_wifi"
             app:tint="#3F51B5" />
 
-        <!-- Device Info -->
+        <View
+            android:id="@+id/dotOnlineStatus"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_alignEnd="@id/ivDeviceIcon"
+            android:layout_alignBottom="@id/ivDeviceIcon"
+            android:background="@drawable/bg_icon_rounded"
+            android:backgroundTint="#22A559" />
+
         <LinearLayout
             android:id="@+id/infoContainer"
             android:layout_width="match_parent"
@@ -35,7 +42,7 @@
             android:layout_marginEnd="8dp"
             android:layout_marginStart="14dp"
             android:layout_toEndOf="@id/ivDeviceIcon"
-            android:layout_toStartOf="@id/btnBlock"
+            android:layout_toStartOf="@id/actionsContainer"
             android:orientation="vertical">
 
             <TextView
@@ -50,23 +57,66 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tvIpAddress"
+                android:id="@+id/tvVendorName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="192.168.100.4"
-                android:textColor="#616161"
-                android:textSize="13sp" />
-
-            <TextView
-                android:id="@+id/tvMacAddress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="AA:BB:CC:DD:EE:FF"
+                android:layout_marginTop="1dp"
+                android:text="Unknown Vendor"
                 android:textColor="#9E9E9E"
                 android:textSize="11sp" />
 
-            <!-- Hotspot Suspicion Warning Tag -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvIpAddress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="192.168.100.4"
+                    android:textColor="#616161"
+                    android:textSize="13sp" />
+
+                <ImageView
+                    android:id="@+id/ivCopyIp"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginStart="6dp"
+                    android:padding="1dp"
+                    android:src="@android:drawable/ic_menu_save"
+                    android:contentDescription="Copy IP"
+                    app:tint="#9E9E9E" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvMacAddress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="AA:BB:CC:DD:EE:FF"
+                    android:textColor="#9E9E9E"
+                    android:textSize="11sp" />
+
+                <ImageView
+                    android:id="@+id/ivCopyMac"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginStart="6dp"
+                    android:padding="1dp"
+                    android:src="@android:drawable/ic_menu_save"
+                    android:contentDescription="Copy MAC"
+                    app:tint="#9E9E9E" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/tvHotspotBadge"
                 android:layout_width="wrap_content"
@@ -82,20 +132,51 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Cute Block / Unblock Action Button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnBlock"
+        <LinearLayout
+            android:id="@+id/actionsContainer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
-            android:backgroundTint="#EF4444"
-            android:minWidth="80dp"
-            android:text="Block"
-            android:textAllCaps="false"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            app:cornerRadius="20dp" />
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/ivRename"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginBottom="6dp"
+                android:padding="1dp"
+                android:src="@android:drawable/ic_menu_edit"
+                android:contentDescription="Rename device"
+                app:tint="#8A7F7F" />
+
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnBlock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="#EF4444"
+                    android:minWidth="80dp"
+                    android:text="Block"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    app:cornerRadius="20dp" />
+
+                <ProgressBar
+                    android:id="@+id/progressBlock"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="#FFFFFF"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+        </LinearLayout>
 
     </RelativeLayout>
 </com.google.android.material.card.MaterialCardView>
