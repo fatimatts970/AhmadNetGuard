@@ -7,6 +7,8 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.databinding.ActivityLoginBinding
+import com.ahmad.netguard.history.AppDatabase
+import com.ahmad.netguard.history.AppLog
 import com.ahmad.netguard.network.RouterSession
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
@@ -111,6 +113,16 @@ class LoginActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val success = router.login(ip, username, password)
             setLoading(false)
+
+            val db = AppDatabase.getInstance(applicationContext)
+            db.appLogDao().insert(
+                AppLog(
+                    type = "LOGIN",
+                    message = if (success) "Signed in to router at $ip" else "Login failed for $ip",
+                    success = success,
+                    timestampMillis = System.currentTimeMillis()
+                )
+            )
 
             if (success) {
                 credentialStore.save(ip, username, password)
