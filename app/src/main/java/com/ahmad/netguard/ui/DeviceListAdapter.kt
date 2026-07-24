@@ -38,12 +38,30 @@ class DeviceListAdapter(
         return ouiVendors[prefix] ?: "Unknown Vendor"
     }
 
+    private fun lastSeenText(isOnline: Boolean, lastSeenMillis: Long): String {
+        if (isOnline) return "Online now"
+        if (lastSeenMillis <= 0L) return "Last seen: unknown"
+
+        val diffMs = System.currentTimeMillis() - lastSeenMillis
+        val minutes = diffMs / 60000
+        val hours = minutes / 60
+        val days = hours / 24
+
+        return when {
+            minutes < 1 -> "Last seen: just now"
+            minutes < 60 -> "Last seen: ${minutes}m ago"
+            hours < 24 -> "Last seen: ${hours}h ago"
+            else -> "Last seen: ${days}d ago"
+        }
+    }
+
     class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tvDeviceName)
         val tvVendor: TextView = view.findViewById(R.id.tvVendorName)
         val tvIp: TextView = view.findViewById(R.id.tvIpAddress)
         val tvMac: TextView = view.findViewById(R.id.tvMacAddress)
         val tvHotspotBadge: TextView = view.findViewById(R.id.tvHotspotBadge)
+        val tvLastSeen: TextView = view.findViewById(R.id.tvLastSeen)
         val dotOnlineStatus: View = view.findViewById(R.id.dotOnlineStatus)
         val ivCopyIp: ImageView = view.findViewById(R.id.ivCopyIp)
         val ivCopyMac: ImageView = view.findViewById(R.id.ivCopyMac)
@@ -72,6 +90,7 @@ class DeviceListAdapter(
         )
 
         holder.tvHotspotBadge.visibility = if (device.isHotspotActive) View.VISIBLE else View.GONE
+        holder.tvLastSeen.text = lastSeenText(device.isOnline, device.lastSeenMillis)
 
         holder.progressBlock.visibility = View.GONE
         holder.btnBlock.visibility = View.VISIBLE
