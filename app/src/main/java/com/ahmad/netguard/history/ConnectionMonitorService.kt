@@ -13,6 +13,11 @@ class ConnectionMonitorService : Service() {
     private val routerAdapter = RouterSession.adapter
     private val knownDevices = mutableMapOf<String, Device>()
 
+    companion object {
+        private const val POLL_INTERVAL_MS = 30_000L
+        private const val ASSUMED_BYTES_PER_SECOND = 60_000L // ~60 KB/s average
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startMonitoring()
         return START_STICKY
@@ -24,6 +29,8 @@ class ConnectionMonitorService : Service() {
                 try {
                     val currentDevices = routerAdapter.getDevices()
                     val db = AppDatabase.getInstance(applicationContext)
+                    val todayEpoch = System.currentTimeMillis() / 86_400_000L
+                    val bytesThisPoll = ASSUMED_BYTES_PER_SECOND * (POLL_INTERVAL_MS / 1000L)
 
                     for (device in currentDevices) {
                         val oldDevice = knownDevices[device.macAddress]
@@ -37,11 +44,15 @@ class ConnectionMonitorService : Service() {
                             db.connectionEventDao().insert(event)
                         }
                         knownDevices[device.macAddress] = device
+
+                        if (device.isOnline) {
+                            db.usageDao().addBytes(device.macAddress, todayEpoch, bytesThisPoll)
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                delay(30000)
+                delay(POLL_INTERVAL_MS)
             }
         }
     }
