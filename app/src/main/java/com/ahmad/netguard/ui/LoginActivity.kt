@@ -27,6 +27,7 @@ class LoginActivity : AppCompatActivity() {
         if (credentialStore.hasSavedCredentials()) {
             binding.inputRouterIp.setText(credentialStore.getRouterIp())
             binding.inputUsername.setText(credentialStore.getUsername())
+            binding.inputPassword.setText(credentialStore.getPassword())
         } else {
             detectGatewayIp()?.let { binding.inputRouterIp.setText(it) }
         }
@@ -37,7 +38,9 @@ class LoginActivity : AppCompatActivity() {
                 BiometricHelper.prompt(
                     activity = this,
                     onSuccess = { attemptLogin(useSaved = true) },
-                    onFailure = { }
+                    onFailure = {
+                        showError("Biometric cancelled. You can sign in with your router IP, username and password below.")
+                    }
                 )
             }
         }
