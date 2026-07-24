@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.model.Device
+import com.ahmad.netguard.history.AppDatabase
 import com.ahmad.netguard.network.DeviceNameStore
 import com.ahmad.netguard.network.RouterSession
 import kotlinx.coroutines.launch
@@ -150,9 +151,19 @@ class MainActivity : AppCompatActivity() {
         swipeRefreshLayout.isRefreshing = true
 
         lifecycleScope.launch {
+            val db = AppDatabase.getInstance(applicationContext)
             val freshDevices = routerAdapter.getDevices().map { device ->
+                var d = device
                 val savedName = nameStore.getCustomName(device.macAddress)
-                if (savedName != null) device.copy(displayName = savedName) else device
+                if (savedName != null) d = d.copy(displayName = savedName)
+
+                val firstEvent = db.connectionEventDao().getFirstEventForDevice(device.macAddress)
+                val lastEvent = db.connectionEventDao().getLastEventForDevice(device.macAddress)
+                d = d.copy(
+                    firstSeenMillis = firstEvent?.timestampMillis ?: 0L,
+                    lastSeenMillis = lastEvent?.timestampMillis ?: 0L
+                )
+                d
             }
             swipeRefreshLayout.isRefreshing = false
 
