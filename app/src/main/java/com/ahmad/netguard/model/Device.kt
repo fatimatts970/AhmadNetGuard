@@ -6,7 +6,9 @@ data class Device(
     val ipAddress: String,
     val isOnline: Boolean = true,
     var isBlocked: Boolean = false,
-    var isHotspotActive: Boolean = false
+    var isHotspotActive: Boolean = false,
+    var firstSeenMillis: Long = 0L,
+    var lastSeenMillis: Long = 0L
 ) {
     val name: String get() = displayName
     val mac: String get() = macAddress
