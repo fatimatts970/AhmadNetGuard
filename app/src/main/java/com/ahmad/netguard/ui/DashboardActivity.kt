@@ -19,6 +19,12 @@ class DashboardActivity : AppCompatActivity() {
     private val routerAdapter = RouterSession.adapter
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var tvOnlineBadge: TextView
+    private lateinit var tvDownloadSpeed: TextView
+    private lateinit var tvUploadSpeed: TextView
+    private lateinit var tvUptime: TextView
+    private lateinit var tvInternetStatus: TextView
+    private lateinit var tvRouterStatus: TextView
+    private lateinit var tvWifiStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,6 +32,12 @@ class DashboardActivity : AppCompatActivity() {
 
         swipeRefresh = findViewById(R.id.swipeRefreshDashboard)
         tvOnlineBadge = findViewById(R.id.text_online_badge)
+        tvDownloadSpeed = findViewById(R.id.text_download_speed)
+        tvUploadSpeed = findViewById(R.id.text_upload_speed)
+        tvUptime = findViewById(R.id.text_router_uptime)
+        tvInternetStatus = findViewById(R.id.text_internet_status)
+        tvRouterStatus = findViewById(R.id.text_router_status)
+        tvWifiStatus = findViewById(R.id.text_wifi_status)
 
         swipeRefresh.setOnRefreshListener { loadDashboardData() }
 
@@ -71,8 +83,16 @@ class DashboardActivity : AppCompatActivity() {
                 val devices = routerAdapter.getDevices()
                 val onlineDevices = devices.filter { it.isOnline }
                 tvOnlineBadge.text = "${onlineDevices.size} online"
+
+                tvRouterStatus.text = "Online"
+                tvInternetStatus.text = "Not available yet"
+                tvWifiStatus.text = if (devices.isNotEmpty()) "Active" else "Unknown"
+                tvUptime.text = "Not available yet"
+                tvDownloadSpeed.text = "Not available yet"
+                tvUploadSpeed.text = "Not available yet"
             } catch (e: Exception) {
                 Toast.makeText(this@DashboardActivity, "Error loading dashboard", Toast.LENGTH_SHORT).show()
+                tvRouterStatus.text = "Offline"
             } finally {
                 swipeRefresh.isRefreshing = false
             }
