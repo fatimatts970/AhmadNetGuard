@@ -18,6 +18,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.model.Device
 import com.ahmad.netguard.history.AppDatabase
+import com.ahmad.netguard.history.AppLog
 import com.ahmad.netguard.hostport.HostportRisk
 import com.ahmad.netguard.hostport.HostportSuspicion
 import com.ahmad.netguard.network.DeviceNameStore
@@ -187,6 +188,17 @@ class MainActivity : AppCompatActivity() {
             } else {
                 routerAdapter.blockDevice(device.macAddress)
             }
+
+            val actionType = if (device.isBlocked) "UNBLOCK" else "BLOCK"
+            val db = AppDatabase.getInstance(applicationContext)
+            db.appLogDao().insert(
+                AppLog(
+                    type = actionType,
+                    message = "${if (success) "" else "Failed to "}${actionType.lowercase()} ${device.displayName} (${device.macAddress})",
+                    success = success,
+                    timestampMillis = System.currentTimeMillis()
+                )
+            )
 
             if (success) {
                 device.isBlocked = !device.isBlocked
