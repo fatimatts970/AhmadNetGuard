@@ -57,6 +57,10 @@ class HistoryActivity : AppCompatActivity() {
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
 
+        binding.btnViewUsage.setOnClickListener {
+            UsageActivity.start(this, mac, name)
+        }
+
         binding.btnClearHistory.setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle("Clear history?")
