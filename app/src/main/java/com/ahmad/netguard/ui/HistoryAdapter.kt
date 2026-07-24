@@ -27,7 +27,7 @@ class HistoryAdapter : RecyclerView.Adapter<HistoryAdapter.EventViewHolder>() {
 
     override fun onBindViewHolder(holder: EventViewHolder, position: Int) {
         val event = events[position]
-        val isOnline = event.eventType == "ONLINE"
+        val isOnline = event.eventType == "connected"
         val color = holder.binding.root.context.getColor(
             if (isOnline) R.color.green_online else R.color.red_blocked
         )
