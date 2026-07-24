@@ -7,7 +7,6 @@
     android:background="#F8F9FA"
     tools:context=".ui.MainActivity">
 
-    <!-- Header Toolbar -->
     <LinearLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
@@ -32,9 +31,42 @@
             android:text="Connected Devices: Loading..."
             android:textColor="#E0E0E0"
             android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etSearchDevices"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:hint="Search devices..."
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingHorizontal="14dp"
+                android:textColor="#212121"
+                android:textColorHint="#9E9E9E"
+                android:textSize="14sp" />
+
+            <ImageButton
+                android:id="@+id/btnSort"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="8dp"
+                android:background="#FFFFFF"
+                android:contentDescription="Sort devices"
+                android:padding="10dp"
+                android:src="@android:drawable/ic_menu_sort_by_size"
+                app:tint="#6200EE" />
+
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Swipe Refresh Wrapper -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
@@ -51,7 +83,6 @@
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-    <!-- Empty State / Error Layout -->
     <LinearLayout
         android:id="@+id/emptyStateLayout"
         android:layout_width="wrap_content"
