@@ -185,6 +185,16 @@
         android:layout_marginTop="8dp" />
 
     <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_view_usage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:backgroundTint="@color/brand_dark"
+        android:text="View Usage"
+        android:textColor="@color/card_white" />
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_clear_history"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
