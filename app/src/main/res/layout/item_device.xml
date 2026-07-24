@@ -117,6 +117,7 @@
                     app:tint="#9E9E9E" />
             </LinearLayout>
 
+            <!-- Hotspot Suspicion Warning Tag -->
             <TextView
                 android:id="@+id/tvHotspotBadge"
                 android:layout_width="wrap_content"
@@ -130,6 +131,15 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvLastSeen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Last seen: —"
+                android:textColor="#9E9E9E"
+                android:textSize="11sp" />
         </LinearLayout>
 
         <LinearLayout
