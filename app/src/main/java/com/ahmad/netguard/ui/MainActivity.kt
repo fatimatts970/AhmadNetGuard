@@ -18,6 +18,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.model.Device
 import com.ahmad.netguard.history.AppDatabase
+import com.ahmad.netguard.hostport.HostportRisk
+import com.ahmad.netguard.hostport.HostportSuspicion
 import com.ahmad.netguard.network.DeviceNameStore
 import com.ahmad.netguard.network.RouterSession
 import kotlinx.coroutines.launch
@@ -163,6 +165,11 @@ class MainActivity : AppCompatActivity() {
                     firstSeenMillis = firstEvent?.timestampMillis ?: 0L,
                     lastSeenMillis = lastEvent?.timestampMillis ?: 0L
                 )
+
+                val history = db.connectionEventDao().getHistoryForDevice(device.macAddress)
+                val assessment = HostportSuspicion.assess(d, history)
+                d.isHotspotActive = assessment.risk == HostportRisk.MEDIUM || assessment.risk == HostportRisk.HIGH
+
                 d
             }
             swipeRefreshLayout.isRefreshing = false
