@@ -9,7 +9,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
-import android.widget.Toast
+import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -203,9 +203,9 @@ class MainActivity : AppCompatActivity() {
             if (success) {
                 device.isBlocked = !device.isBlocked
                 val statusMsg = if (device.isBlocked) "Blocked" else "Unblocked"
-                Toast.makeText(this@MainActivity, "${device.displayName} $statusMsg successfully!", Toast.LENGTH_SHORT).show()
+                Snackbar.make(rvDevices, "${device.displayName} $statusMsg successfully!", Snackbar.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this@MainActivity, "Action failed! Check router connection.", Toast.LENGTH_SHORT).show()
+                Snackbar.make(rvDevices, "Action failed! Check router connection.", Snackbar.LENGTH_LONG).show()
             }
             deviceListAdapter.clearProcessingState()
         }
