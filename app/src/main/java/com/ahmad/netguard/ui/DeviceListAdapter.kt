@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.ahmad.netguard.R
 import com.ahmad.netguard.model.Device
+import com.ahmad.netguard.network.DeviceNameStore
 import com.google.android.material.button.MaterialButton
 
 class DeviceListAdapter(
@@ -81,7 +82,13 @@ class DeviceListAdapter(
         val context = holder.itemView.context
 
         holder.tvName.text = device.displayName
-        holder.tvVendor.text = vendorFor(device.macAddress)
+        val isKnown = DeviceNameStore(context).getCustomName(device.macAddress) != null
+        holder.tvVendor.text = if (isKnown) {
+            "${vendorFor(device.macAddress)} · ✓ Known"
+        } else {
+            "${vendorFor(device.macAddress)} · Unknown device"
+        }
+        holder.tvVendor.setTextColor(if (isKnown) Color.parseColor("#22A559") else Color.parseColor("#E14747"))
         holder.tvIp.text = device.ipAddress
         holder.tvMac.text = device.macAddress
 
