@@ -71,6 +71,16 @@
         android:visibility="gone" />
 
     <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnExportLogs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:backgroundTint="@color/brand_dark"
+        android:text="Export Logs"
+        android:textColor="@color/card_white" />
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/btnClearLogs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
