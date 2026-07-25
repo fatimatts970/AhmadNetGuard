@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_screen">#121212</color>
+    <color name="brand_dark">#4A3B3B</color>
+    <color name="card_white">#1E1E1E</color>
+    <color name="text_primary">#F2EFEF</color>
+    <color name="text_secondary">#A89F9F</color>
+
+    <color name="green_online">#4ADE80</color>
+    <color name="green_bg">#1B3A28</color>
+
+    <color name="red_blocked">#F87171</color>
+    <color name="red_bg">#3A1E1E</color>
+
+    <color name="splash_blue">#5B8DEF</color>
+    <color name="splash_blue_dark">#2F63E8</color>
+</resources>
