@@ -189,7 +189,14 @@ class MainActivity : AppCompatActivity() {
 
         filtered = when (currentSort) {
             SortOption.NAME -> filtered.sortedBy { it.displayName.lowercase() }
-            SortOption.IP -> filtered.sortedBy { ipSortKey(it.ipAddress) }
+            SortOption.IP -> filtered.sortedWith(
+                compareBy(
+                    { ipSortKey(it.ipAddress).getOrElse(0) { 0 } },
+                    { ipSortKey(it.ipAddress).getOrElse(1) { 0 } },
+                    { ipSortKey(it.ipAddress).getOrElse(2) { 0 } },
+                    { ipSortKey(it.ipAddress).getOrElse(3) { 0 } }
+                )
+            )
             SortOption.STATUS -> filtered.sortedByDescending { it.isOnline }
         }
 
