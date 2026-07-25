@@ -1,119 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F8F9FA"
-    tools:context=".ui.MainActivity">
+<!-- yeh sirf changed hissa hai, header row mein 2 buttons ab (Sort + Backup) -->
+<ImageButton
+    android:id="@+id/btnSort"
+    android:layout_width="44dp"
+    android:layout_height="44dp"
+    android:layout_marginStart="8dp"
+    android:background="#FFFFFF"
+    android:contentDescription="Sort devices"
+    android:padding="10dp"
+    android:src="@android:drawable/ic_menu_sort_by_size"
+    app:tint="#6200EE" />
 
-    <LinearLayout
-        android:id="@+id/headerLayout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#6200EE"
-        android:orientation="vertical"
-        android:padding="20dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ahmad NetGuard"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvDeviceCountHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Connected Devices: Loading..."
-            android:textColor="#E0E0E0"
-            android:textSize="14sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/etSearchDevices"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1"
-                android:background="#FFFFFF"
-                android:hint="Search devices..."
-                android:inputType="text"
-                android:maxLines="1"
-                android:paddingHorizontal="14dp"
-                android:textColor="#212121"
-                android:textColorHint="#9E9E9E"
-                android:textSize="14sp" />
-
-            <ImageButton
-                android:id="@+id/btnSort"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="8dp"
-                android:background="#FFFFFF"
-                android:contentDescription="Sort devices"
-                android:padding="10dp"
-                android:src="@android:drawable/ic_menu_sort_by_size"
-                app:tint="#6200EE" />
-
-        </LinearLayout>
-    </LinearLayout>
-
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/swipeRefreshLayout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/headerLayout">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvDevices"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:padding="12dp"
-            tools:listitem="@layout/item_device" />
-
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-    <LinearLayout
-        android:id="@+id/emptyStateLayout"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <ImageView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:src="@drawable/ic_wifi"
-            app:tint="#B0BEC5" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="No Devices Found"
-            android:textColor="#37474F"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Pull down to refresh or check router connection"
-            android:textColor="#78909C"
-            android:textSize="14sp" />
-    </LinearLayout>
-
-</RelativeLayout>
+<ImageButton
+    android:id="@+id/btnBackup"
+    android:layout_width="44dp"
+    android:layout_height="44dp"
+    android:layout_marginStart="8dp"
+    android:background="#FFFFFF"
+    android:contentDescription="Backup or restore device names"
+    android:padding="10dp"
+    android:src="@android:drawable/ic_menu_save"
+    app:tint="#6200EE" />
