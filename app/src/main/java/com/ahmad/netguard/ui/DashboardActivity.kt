@@ -12,7 +12,12 @@ import com.ahmad.netguard.history.ConnectionMonitorService
 import com.ahmad.netguard.network.RouterSession
 import com.ahmad.netguard.network.RouterCredentialStore
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 class DashboardActivity : AppCompatActivity() {
 
@@ -65,6 +70,50 @@ class DashboardActivity : AppCompatActivity() {
 
         startHistoryTracking()
         loadDashboardData()
+
+        tvDownloadSpeed.setOnClickListener { runSpeedTest() }
+    }
+
+    private fun runSpeedTest() {
+        tvDownloadSpeed.text = "Testing…"
+        lifecycleScope.launch {
+            val mbps = withContext(Dispatchers.IO) {
+                try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(10, TimeUnit.SECONDS)
+                        .readTimeout(20, TimeUnit.SECONDS)
+                        .build()
+                    val request = Request.Builder()
+                        .url("https://speed.cloudflare.com/__down?bytes=10000000")
+                        .build()
+
+                    val startTime = System.currentTimeMillis()
+                    var bytesRead = 0L
+                    client.newCall(request).execute().use { response ->
+                        val body = response.body ?: return@withContext null
+                        val source = body.source()
+                        val buffer = ByteArray(8192)
+                        while (true) {
+                            val read = source.read(buffer)
+                            if (read == -1) break
+                            bytesRead += read
+                        }
+                    }
+                    val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
+                    if (elapsedSeconds <= 0) return@withContext null
+                    (bytesRead * 8) / (elapsedSeconds * 1_000_000)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            }
+
+            tvDownloadSpeed.text = if (mbps != null) {
+                "%.1f Mbps".format(mbps)
+            } else {
+                "Test failed"
+            }
+        }
     }
 
     private fun startHistoryTracking() {
@@ -88,7 +137,7 @@ class DashboardActivity : AppCompatActivity() {
                 tvInternetStatus.text = "Not available yet"
                 tvWifiStatus.text = if (devices.isNotEmpty()) "Active" else "Unknown"
                 tvUptime.text = "Not available yet"
-                tvDownloadSpeed.text = "Not available yet"
+                tvDownloadSpeed.text = "Tap to test"
                 tvUploadSpeed.text = "Not available yet"
             } catch (e: Exception) {
                 Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
