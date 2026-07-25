@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -12,6 +11,7 @@ import com.ahmad.netguard.R
 import com.ahmad.netguard.history.ConnectionMonitorService
 import com.ahmad.netguard.network.RouterSession
 import com.ahmad.netguard.network.RouterCredentialStore
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
 class DashboardActivity : AppCompatActivity() {
@@ -50,7 +50,7 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_net_stats).setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, LogsActivity::class.java))
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_mac_filter).setOnClickListener {
@@ -91,7 +91,13 @@ class DashboardActivity : AppCompatActivity() {
                 tvDownloadSpeed.text = "Not available yet"
                 tvUploadSpeed.text = "Not available yet"
             } catch (e: Exception) {
-                Toast.makeText(this@DashboardActivity, "Error loading dashboard", Toast.LENGTH_SHORT).show()
+                Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
+                    .setAction("Login Again") {
+                        RouterCredentialStore(this@DashboardActivity).clear()
+                        startActivity(Intent(this@DashboardActivity, LoginActivity::class.java))
+                        finish()
+                    }
+                    .show()
                 tvRouterStatus.text = "Offline"
             } finally {
                 swipeRefresh.isRefreshing = false
