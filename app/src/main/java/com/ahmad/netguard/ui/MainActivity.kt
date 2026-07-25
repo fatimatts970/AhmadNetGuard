@@ -1,6 +1,9 @@
 package com.ahmad.netguard.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -9,6 +12,8 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -24,6 +29,7 @@ import com.ahmad.netguard.hostport.HostportSuspicion
 import com.ahmad.netguard.network.DeviceNameStore
 import com.ahmad.netguard.network.RouterSession
 import kotlinx.coroutines.launch
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -33,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvDeviceCountHeader: TextView
     private lateinit var etSearch: EditText
     private lateinit var btnSort: ImageButton
+    private lateinit var btnBackup: ImageButton
 
     private val routerAdapter = RouterSession.adapter
     private lateinit var nameStore: DeviceNameStore
@@ -56,12 +63,14 @@ class MainActivity : AppCompatActivity() {
         tvDeviceCountHeader = findViewById(R.id.tvDeviceCountHeader)
         etSearch = findViewById(R.id.etSearchDevices)
         btnSort = findViewById(R.id.btnSort)
+        btnBackup = findViewById(R.id.btnBackup)
 
         nameStore = DeviceNameStore(this)
 
         setupRecyclerView()
         setupSearch()
         setupSort()
+        setupBackup()
 
         swipeRefreshLayout.setOnRefreshListener {
             loadConnectedDevices()
@@ -82,6 +91,59 @@ class MainActivity : AppCompatActivity() {
             onRenameClick = { device -> showRenameDialog(device) }
         )
         rvDevices.adapter = deviceListAdapter
+    }
+
+    private val importFileLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) importBackup(uri)
+    }
+
+    private fun setupBackup() {
+        btnBackup.setOnClickListener { view ->
+            val popup = PopupMenu(this, view)
+            popup.menu.add(0, 0, 0, "Export Device Names")
+            popup.menu.add(0, 1, 1, "Import Device Names")
+            popup.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    0 -> exportBackup()
+                    1 -> importFileLauncher.launch("application/json")
+                }
+                true
+            }
+            popup.show()
+        }
+    }
+
+    private fun exportBackup() {
+        val json = nameStore.exportAllAsJson()
+        val exportDir = File(getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "exports")
+        exportDir.mkdirs()
+        val file = File(exportDir, "netguard_device_names_${System.currentTimeMillis()}.json")
+        file.writeText(json)
+
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(shareIntent, "Export Device Names"))
+    }
+
+    private fun importBackup(uri: Uri) {
+        try {
+            val jsonText = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            if (jsonText == null) {
+                Snackbar.make(rvDevices, "Couldn't read that file", Snackbar.LENGTH_SHORT).show()
+                return
+            }
+            val count = nameStore.importFromJson(jsonText)
+            Snackbar.make(rvDevices, "Imported $count device name(s)", Snackbar.LENGTH_SHORT).show()
+            loadConnectedDevices()
+        } catch (e: Exception) {
+            Snackbar.make(rvDevices, "Import failed — not a valid backup file", Snackbar.LENGTH_LONG).show()
+        }
     }
 
     private fun setupSearch() {
