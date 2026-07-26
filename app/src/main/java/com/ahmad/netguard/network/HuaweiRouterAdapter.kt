@@ -214,6 +214,53 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
+    suspend fun changeWifiSettings(ssid: String, password: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("y.SSID", ssid)
+                .add("k.PreSharedKey", password)
+                .add("y.WMMEnable", "1")
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/html/network/set.cgi?y=InternetGatewayDevice.LANDevice.1.WLANConfiguration.1&z=InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.WPS&k=InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1&RequestFile=html/network/WlanBasic.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
+    suspend fun rebootRouter(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/html/ssmp/accoutcfg/set.cgi?x=InternetGatewayDevice.X_HW_DEBUG.SMP.DM.ResetBoard&RequestFile=html/ssmp/accoutcfg/ontmngt.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
     override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
