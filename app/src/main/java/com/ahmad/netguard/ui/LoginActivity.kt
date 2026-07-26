@@ -36,15 +36,8 @@ class LoginActivity : AppCompatActivity() {
 
         if (BiometricHelper.canUseBiometrics(this) && credentialStore.hasSavedCredentials()) {
             binding.btnUseBiometric.visibility = android.view.View.VISIBLE
-            binding.btnUseBiometric.setOnClickListener {
-                BiometricHelper.prompt(
-                    activity = this,
-                    onSuccess = { attemptLogin(useSaved = true) },
-                    onFailure = {
-                        showError("Biometric cancelled. You can sign in with your router IP, username and password below.")
-                    }
-                )
-            }
+            binding.btnUseBiometric.setOnClickListener { promptBiometric() }
+            promptBiometric()
         }
 
         binding.btnConnect.setOnClickListener {
@@ -52,6 +45,16 @@ class LoginActivity : AppCompatActivity() {
         }
 
         setupPasswordToggle()
+    }
+
+    private fun promptBiometric() {
+        BiometricHelper.prompt(
+            activity = this,
+            onSuccess = { attemptLogin(useSaved = true) },
+            onFailure = {
+                showError("Biometric cancelled. You can sign in with your router IP, username and password below.")
+            }
+        )
     }
 
     private var isPasswordVisible = false
