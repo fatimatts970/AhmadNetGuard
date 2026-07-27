@@ -214,6 +214,34 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
+    suspend fun getCurrentWifiName(): String? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("http://$routerIp/html/network/WlanBasic.asp")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string() ?: return@withContext null
+
+                val patterns = listOf(
+                    Regex("""SSID\s*[:=]\s*["']([^"']+)["']"""),
+                    Regex("""name=["']?ssid["']?[^>]*value=["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+                    Regex("""id=["']?ssid["']?[^>]*value=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                )
+                for (pattern in patterns) {
+                    val match = pattern.find(body)
+                    if (match != null) return@withContext match.groupValues[1]
+                }
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     suspend fun changeWifiSettings(ssid: String, password: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
