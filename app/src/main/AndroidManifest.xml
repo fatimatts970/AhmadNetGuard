@@ -44,6 +44,8 @@
 
         <activity android:name=".ui.LogsActivity" android:exported="false" />
 
+        <activity android:name=".ui.WifiSettingsActivity" android:exported="false" />
+
         <service
             android:name=".history.ConnectionMonitorService"
             android:exported="false"
