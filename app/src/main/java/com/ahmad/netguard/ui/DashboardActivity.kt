@@ -51,7 +51,7 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_wifi).setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, WifiSettingsActivity::class.java))
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_net_stats).setOnClickListener {
