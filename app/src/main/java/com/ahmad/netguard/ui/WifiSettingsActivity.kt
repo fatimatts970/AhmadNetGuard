@@ -1,0 +1,94 @@
+package com.ahmad.netguard.ui
+
+import android.os.Bundle
+import android.text.InputType
+import android.view.View
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.ahmad.netguard.R
+import com.ahmad.netguard.network.HuaweiRouterAdapter
+import com.ahmad.netguard.network.RouterCredentialStore
+import com.ahmad.netguard.network.RouterSession
+import kotlinx.coroutines.launch
+
+class WifiSettingsActivity : AppCompatActivity() {
+
+    private val routerAdapter = RouterSession.adapter
+    private var isPasswordVisible = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_wifi_settings)
+
+        val inputSsid = findViewById<android.widget.EditText>(R.id.inputSsid)
+        val inputPassword = findViewById<android.widget.EditText>(R.id.inputWifiPassword)
+        val btnToggle = findViewById<android.widget.ImageView>(R.id.btnToggleWifiPassword)
+        val btnSave = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSaveWifiSettings)
+        val progress = findViewById<android.widget.ProgressBar>(R.id.progressWifiSave)
+        val textError = findViewById<android.widget.TextView>(R.id.textWifiError)
+
+        btnToggle.setOnClickListener {
+            isPasswordVisible = !isPasswordVisible
+            inputPassword.inputType = if (isPasswordVisible) {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            } else {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+            inputPassword.setSelection(inputPassword.text.length)
+        }
+
+        btnSave.setOnClickListener {
+            val ssid = inputSsid.text.toString().trim()
+            val password = inputPassword.text.toString()
+
+            if (ssid.isBlank() || password.length < 8) {
+                textError.text = "Network name can't be empty and password needs at least 8 characters."
+                textError.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("Change WiFi settings?")
+                .setMessage("This disconnects every device on your network, including this phone. You'll need to reconnect to \"$ssid\" and log back in.")
+                .setPositiveButton("Change") { _, _ -> saveWifiSettings(ssid, password, btnSave, progress, textError) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun saveWifiSettings(
+        ssid: String,
+        password: String,
+        btnSave: com.google.android.material.button.MaterialButton,
+        progress: android.widget.ProgressBar,
+        textError: android.widget.TextView
+    ) {
+        textError.visibility = View.GONE
+        btnSave.isEnabled = false
+        progress.visibility = View.VISIBLE
+
+        lifecycleScope.launch {
+            val success = (routerAdapter as? HuaweiRouterAdapter)?.changeWifiSettings(ssid, password) ?: false
+            progress.visibility = View.GONE
+            btnSave.isEnabled = true
+
+            if (success) {
+                AlertDialog.Builder(this@WifiSettingsActivity)
+                    .setTitle("WiFi settings updated")
+                    .setMessage("Your network name/password changed. This app will now sign you out — reconnect to \"$ssid\" on this phone and log in again.")
+                    .setCancelable(false)
+                    .setPositiveButton("OK") { _, _ ->
+                        RouterCredentialStore(this@WifiSettingsActivity).clear()
+                        val intent = android.content.Intent(this@WifiSettingsActivity, LoginActivity::class.java)
+                        intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        startActivity(intent)
+                    }
+                    .show()
+            } else {
+                textError.text = "Couldn't change WiFi settings. Check your connection and try again."
+                textError.visibility = View.VISIBLE
+            }
+        }
+    }
+}
