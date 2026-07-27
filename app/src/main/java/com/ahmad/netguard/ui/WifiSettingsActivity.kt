@@ -55,6 +55,13 @@ class WifiSettingsActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+
+        lifecycleScope.launch {
+            val currentSsid = (routerAdapter as? HuaweiRouterAdapter)?.getCurrentWifiName()
+            if (!currentSsid.isNullOrBlank()) {
+                inputSsid.setText(currentSsid)
+            }
+        }
     }
 
     private fun saveWifiSettings(
