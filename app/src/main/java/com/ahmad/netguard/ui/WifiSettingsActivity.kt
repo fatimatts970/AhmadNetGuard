@@ -62,6 +62,29 @@ class WifiSettingsActivity : AppCompatActivity() {
                 inputSsid.setText(currentSsid)
             }
         }
+
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btnRebootRouter).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Reboot router?")
+                .setMessage("This restarts the router. Every device on the network (including this one) will lose connection for a minute or two while it comes back up.")
+                .setPositiveButton("Reboot") { _, _ -> triggerReboot() }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    private fun triggerReboot() {
+        lifecycleScope.launch {
+            val success = (routerAdapter as? HuaweiRouterAdapter)?.rebootRouter() ?: false
+            AlertDialog.Builder(this@WifiSettingsActivity)
+                .setTitle(if (success) "Rebooting…" else "Couldn't reboot")
+                .setMessage(
+                    if (success) "The router is restarting. Give it a minute or two, then reconnect and log in again."
+                    else "The reboot request failed. Check your connection and try again."
+                )
+                .setPositiveButton("OK", null)
+                .show()
+        }
     }
 
     private fun saveWifiSettings(
