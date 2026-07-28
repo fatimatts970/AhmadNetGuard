@@ -247,7 +247,14 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
                 )
                 for (pattern in patterns) {
                     val match = pattern.find(body)
-                    if (match != null) return@withContext match.groupValues[1]
+                    val candidate = match?.groupValues?.get(1)
+                    val looksLikeRealName = candidate != null &&
+                        candidate.isNotBlank() &&
+                        !candidate.contains("(") &&
+                        !candidate.contains(")")
+                    if (looksLikeRealName) {
+                        return@withContext candidate
+                    }
                 }
                 null
             }
