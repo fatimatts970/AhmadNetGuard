@@ -132,4 +132,15 @@
         android:textColor="@color/text_secondary"
         android:textSize="11sp" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnRebootRouter"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="20dp"
+        android:backgroundTint="@color/red_blocked"
+        android:text="Reboot Router"
+        android:textAllCaps="false"
+        android:textColor="@color/card_white"
+        app:cornerRadius="14dp" />
+
 </LinearLayout>
