@@ -27,6 +27,7 @@ class WifiSettingsActivity : AppCompatActivity() {
         val btnSave = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSaveWifiSettings)
         val progress = findViewById<android.widget.ProgressBar>(R.id.progressWifiSave)
         val textError = findViewById<android.widget.TextView>(R.id.textWifiError)
+        val checkboxHideSsid = findViewById<android.widget.CheckBox>(R.id.checkboxHideSsid)
 
         btnToggle.setOnClickListener {
             isPasswordVisible = !isPasswordVisible
@@ -51,7 +52,7 @@ class WifiSettingsActivity : AppCompatActivity() {
             AlertDialog.Builder(this)
                 .setTitle("Change WiFi settings?")
                 .setMessage("This disconnects every device on your network, including this phone. You'll need to reconnect to \"$ssid\" and log back in.")
-                .setPositiveButton("Change") { _, _ -> saveWifiSettings(ssid, password, btnSave, progress, textError) }
+                .setPositiveButton("Change") { _, _ -> saveWifiSettings(ssid, password, checkboxHideSsid.isChecked, btnSave, progress, textError) }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
@@ -90,6 +91,7 @@ class WifiSettingsActivity : AppCompatActivity() {
     private fun saveWifiSettings(
         ssid: String,
         password: String,
+        hideSsid: Boolean,
         btnSave: com.google.android.material.button.MaterialButton,
         progress: android.widget.ProgressBar,
         textError: android.widget.TextView
@@ -99,7 +101,7 @@ class WifiSettingsActivity : AppCompatActivity() {
         progress.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            val success = (routerAdapter as? HuaweiRouterAdapter)?.changeWifiSettings(ssid, password) ?: false
+            val success = (routerAdapter as? HuaweiRouterAdapter)?.changeWifiSettings(ssid, password, hideSsid) ?: false
             progress.visibility = View.GONE
             btnSave.isEnabled = true
 
