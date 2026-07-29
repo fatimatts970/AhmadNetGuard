@@ -264,7 +264,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
-    suspend fun changeWifiSettings(ssid: String, password: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun changeWifiSettings(ssid: String, password: String, hideSsid: Boolean = false): Boolean = withContext(Dispatchers.IO) {
         try {
             val token = fetchWifiPageToken()
             val wlanDomain = "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1"
@@ -272,7 +272,7 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
             val formBody = FormBody.Builder()
                 .add("w.SSID", ssid)
                 .add("k.PreSharedKey", password)
-                .add("w.SSIDAdvertisementEnabled", "1")
+                .add("w.SSIDAdvertisementEnabled", if (hideSsid) "0" else "1")
                 .add("w.BeaconType", "WPAand11i")
                 .add("w.BasicAuthenticationMode", "PSKAuthentication")
                 .add("w.BasicEncryptionModes", "TKIPandAESEncryption")
