@@ -39,6 +39,7 @@ class LogsActivity : AppCompatActivity() {
                     2 -> "LOGIN"
                     3 -> "BLOCK"
                     4 -> "UNBLOCK"
+                    5 -> "HOSTPORT"
                     else -> null
                 }
                 loadLogs(type)
