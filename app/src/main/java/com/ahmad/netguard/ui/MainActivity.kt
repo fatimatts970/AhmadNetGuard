@@ -244,7 +244,7 @@ class MainActivity : AppCompatActivity() {
                     db.appLogDao().insert(
                         AppLog(
                             type = "HOSTPORT",
-                            message = "${d.displayName} (${d.macAddress}) — ${assessment.risk} risk: ${assessment.reasons.joinToString("; ")}",
+                            message = "Device: ${d.displayName} | IP: ${d.ipAddress} | MAC: ${d.macAddress} | Risk: ${assessment.risk} — ${assessment.reasons.joinToString("; ")}",
                             success = false,
                             timestampMillis = System.currentTimeMillis()
                         )
