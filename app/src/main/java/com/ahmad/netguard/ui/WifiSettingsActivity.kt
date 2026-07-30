@@ -72,6 +72,51 @@ class WifiSettingsActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+
+        setupDhcpSection()
+    }
+
+    private fun setupDhcpSection() {
+        val checkboxDhcpEnabled = findViewById<android.widget.CheckBox>(R.id.checkboxDhcpEnabled)
+        val inputMin = findViewById<android.widget.EditText>(R.id.inputDhcpMin)
+        val inputMax = findViewById<android.widget.EditText>(R.id.inputDhcpMax)
+        val btnSaveDhcp = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSaveDhcp)
+        val progressDhcp = findViewById<android.widget.ProgressBar>(R.id.progressDhcpSave)
+        val textDhcpError = findViewById<android.widget.TextView>(R.id.textDhcpError)
+        val ipRegex = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
+
+        btnSaveDhcp.setOnClickListener {
+            val minIp = inputMin.text.toString().trim()
+            val maxIp = inputMax.text.toString().trim()
+
+            if (!ipRegex.matches(minIp) || !ipRegex.matches(maxIp)) {
+                textDhcpError.text = "Enter valid IP addresses, e.g. 192.168.100.100"
+                textDhcpError.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+
+            textDhcpError.visibility = View.GONE
+            btnSaveDhcp.isEnabled = false
+            progressDhcp.visibility = View.VISIBLE
+
+            lifecycleScope.launch {
+                val success = (routerAdapter as? HuaweiRouterAdapter)
+                    ?.changeDhcpSettings(minIp, maxIp, checkboxDhcpEnabled.isChecked) ?: false
+                progressDhcp.visibility = View.GONE
+                btnSaveDhcp.isEnabled = true
+
+                if (success) {
+                    AlertDialog.Builder(this@WifiSettingsActivity)
+                        .setTitle("DHCP settings saved")
+                        .setMessage("New devices will get an address between $minIp and $maxIp.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                } else {
+                    textDhcpError.text = "Couldn't save DHCP settings. Check your connection and try again."
+                    textDhcpError.visibility = View.VISIBLE
+                }
+            }
+        }
     }
 
     private fun triggerReboot() {
