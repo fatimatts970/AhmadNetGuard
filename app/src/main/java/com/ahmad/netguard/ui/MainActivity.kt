@@ -240,6 +240,17 @@ class MainActivity : AppCompatActivity() {
                 val assessment = HostportSuspicion.assess(d, history)
                 d.isHotspotActive = assessment.risk == HostportRisk.MEDIUM || assessment.risk == HostportRisk.HIGH
 
+                if (d.isHotspotActive) {
+                    db.appLogDao().insert(
+                        AppLog(
+                            type = "HOSTPORT",
+                            message = "${d.displayName} (${d.macAddress}) — ${assessment.risk} risk: ${assessment.reasons.joinToString("; ")}",
+                            success = false,
+                            timestampMillis = System.currentTimeMillis()
+                        )
+                    )
+                }
+
                 d
             }
             swipeRefreshLayout.isRefreshing = false
