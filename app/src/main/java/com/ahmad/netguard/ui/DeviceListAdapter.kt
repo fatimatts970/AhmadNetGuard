@@ -18,6 +18,7 @@ import com.google.android.material.button.MaterialButton
 
 class DeviceListAdapter(
     private val devices: List<Device>,
+    private val onIpFilterLongClick: (Device) -> Unit = {},
     private val onBlockClick: (Device) -> Unit,
     private val onItemClick: (Device) -> Unit,
     private val onRenameClick: (Device) -> Unit = {}
@@ -118,6 +119,11 @@ class DeviceListAdapter(
 
         holder.ivCopyIp.setOnClickListener {
             copyToClipboard(context, "IP Address", device.ipAddress)
+        }
+
+        holder.tvIp.setOnLongClickListener {
+            onIpFilterLongClick(device)
+            true
         }
 
         holder.ivCopyMac.setOnClickListener {
