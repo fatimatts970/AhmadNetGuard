@@ -300,6 +300,53 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
+    suspend fun addIpFilterRule(ipAddress: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("x.DestIPAddress", ipAddress)
+                .add("x.Enable", "1")
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/add.cgi?x=InternetGatewayDevice.X_HW_Security.IpFilterIn&RequestFile=html/security/ipincoming.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
+    suspend fun removeIpFilterRule(ipAddress: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("x.DestIPAddress", ipAddress)
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/del.cgi?x=InternetGatewayDevice.X_HW_Security.IpFilterIn&RequestFile=html/security/ipincoming.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
     suspend fun changeDhcpSettings(minAddress: String, maxAddress: String, enabled: Boolean): Boolean =
         withContext(Dispatchers.IO) {
             try {
