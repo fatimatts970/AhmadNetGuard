@@ -27,7 +27,6 @@ class WifiSettingsActivity : AppCompatActivity() {
         val btnSave = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSaveWifiSettings)
         val progress = findViewById<android.widget.ProgressBar>(R.id.progressWifiSave)
         val textError = findViewById<android.widget.TextView>(R.id.textWifiError)
-        val checkboxHideSsid = findViewById<android.widget.CheckBox>(R.id.checkboxHideSsid)
 
         btnToggle.setOnClickListener {
             isPasswordVisible = !isPasswordVisible
@@ -52,7 +51,7 @@ class WifiSettingsActivity : AppCompatActivity() {
             AlertDialog.Builder(this)
                 .setTitle("Change WiFi settings?")
                 .setMessage("This disconnects every device on your network, including this phone. You'll need to reconnect to \"$ssid\" and log back in.")
-                .setPositiveButton("Change") { _, _ -> saveWifiSettings(ssid, password, checkboxHideSsid.isChecked, btnSave, progress, textError) }
+                .setPositiveButton("Change") { _, _ -> saveWifiSettings(ssid, password, btnSave, progress, textError) }
                 .setNegativeButton("Cancel", null)
                 .show()
         }
@@ -71,51 +70,6 @@ class WifiSettingsActivity : AppCompatActivity() {
                 .setPositiveButton("Reboot") { _, _ -> triggerReboot() }
                 .setNegativeButton("Cancel", null)
                 .show()
-        }
-
-        setupDhcpSection()
-    }
-
-    private fun setupDhcpSection() {
-        val checkboxDhcpEnabled = findViewById<android.widget.CheckBox>(R.id.checkboxDhcpEnabled)
-        val inputMin = findViewById<android.widget.EditText>(R.id.inputDhcpMin)
-        val inputMax = findViewById<android.widget.EditText>(R.id.inputDhcpMax)
-        val btnSaveDhcp = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnSaveDhcp)
-        val progressDhcp = findViewById<android.widget.ProgressBar>(R.id.progressDhcpSave)
-        val textDhcpError = findViewById<android.widget.TextView>(R.id.textDhcpError)
-        val ipRegex = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
-
-        btnSaveDhcp.setOnClickListener {
-            val minIp = inputMin.text.toString().trim()
-            val maxIp = inputMax.text.toString().trim()
-
-            if (!ipRegex.matches(minIp) || !ipRegex.matches(maxIp)) {
-                textDhcpError.text = "Enter valid IP addresses, e.g. 192.168.100.100"
-                textDhcpError.visibility = View.VISIBLE
-                return@setOnClickListener
-            }
-
-            textDhcpError.visibility = View.GONE
-            btnSaveDhcp.isEnabled = false
-            progressDhcp.visibility = View.VISIBLE
-
-            lifecycleScope.launch {
-                val success = (routerAdapter as? HuaweiRouterAdapter)
-                    ?.changeDhcpSettings(minIp, maxIp, checkboxDhcpEnabled.isChecked) ?: false
-                progressDhcp.visibility = View.GONE
-                btnSaveDhcp.isEnabled = true
-
-                if (success) {
-                    AlertDialog.Builder(this@WifiSettingsActivity)
-                        .setTitle("DHCP settings saved")
-                        .setMessage("New devices will get an address between $minIp and $maxIp.")
-                        .setPositiveButton("OK", null)
-                        .show()
-                } else {
-                    textDhcpError.text = "Couldn't save DHCP settings. Check your connection and try again."
-                    textDhcpError.visibility = View.VISIBLE
-                }
-            }
         }
     }
 
@@ -136,7 +90,6 @@ class WifiSettingsActivity : AppCompatActivity() {
     private fun saveWifiSettings(
         ssid: String,
         password: String,
-        hideSsid: Boolean,
         btnSave: com.google.android.material.button.MaterialButton,
         progress: android.widget.ProgressBar,
         textError: android.widget.TextView
@@ -146,7 +99,7 @@ class WifiSettingsActivity : AppCompatActivity() {
         progress.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            val success = (routerAdapter as? HuaweiRouterAdapter)?.changeWifiSettings(ssid, password, hideSsid) ?: false
+            val success = (routerAdapter as? HuaweiRouterAdapter)?.changeWifiSettings(ssid, password) ?: false
             progress.visibility = View.GONE
             btnSave.isEnabled = true
 
