@@ -300,6 +300,32 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
+    suspend fun changeDhcpSettings(minAddress: String, maxAddress: String, enabled: Boolean): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+                val formBody = FormBody.Builder()
+                    .add("z.MinAddress", minAddress)
+                    .add("z.MaxAddress", maxAddress)
+                    .add("y.DHCPEnable", if (enabled) "1" else "0")
+                    .add("x.X_HW_Token", token)
+                    .build()
+
+                val request = Request.Builder()
+                    .url("http://$routerIp/html/bbsp/dhcpservercfg/set.cgi?x=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.IPInterface.2&y=InternetGatewayDevice.X_HW_DHCPSLVSERVER&z=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement&RequestFile=html/bbsp/dhcpservercfg/dhcp2.asp")
+                    .post(formBody)
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    return@withContext response.isSuccessful
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return@withContext false
+            }
+        }
+
     suspend fun rebootRouter(): Boolean = withContext(Dispatchers.IO) {
         try {
             val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
