@@ -300,6 +300,54 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
+    suspend fun addGuestSsid(ssidName: String, password: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("x.SSIDName", ssidName)
+                .add("x.PreSharedKey", password)
+                .add("x.Enable", "1")
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/add.cgi?x=InternetGatewayDevice.LANDevice.1.WLANConfiguration&RequestFile=html/amp/wlanbasic/WlanBasic.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
+    suspend fun deleteGuestSsid(ssidName: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+
+            val formBody = FormBody.Builder()
+                .add("x.SSIDName", ssidName)
+                .add("x.X_HW_Token", token)
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$routerIp/del.cgi?x=InternetGatewayDevice.LANDevice.1.WLANConfiguration&RequestFile=html/amp/wlanbasic/WlanBasic.asp")
+                .post(formBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                return@withContext response.isSuccessful
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
     suspend fun addIpFilterRule(ipAddress: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
