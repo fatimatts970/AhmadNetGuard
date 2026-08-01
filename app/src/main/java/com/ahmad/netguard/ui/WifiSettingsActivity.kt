@@ -71,6 +71,83 @@ class WifiSettingsActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+
+        setupGuestWifi()
+    }
+
+    private fun setupGuestWifi() {
+        val inputGuestSsid = findViewById<android.widget.EditText>(R.id.inputGuestSsid)
+        val inputGuestPassword = findViewById<android.widget.EditText>(R.id.inputGuestPassword)
+        val textGuestError = findViewById<android.widget.TextView>(R.id.textGuestError)
+        val btnAddGuest = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnAddGuestWifi)
+        val btnRemoveGuest = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnRemoveGuestWifi)
+        val progressGuest = findViewById<android.widget.ProgressBar>(R.id.progressGuestWifi)
+
+        btnAddGuest.setOnClickListener {
+            val guestSsid = inputGuestSsid.text.toString().trim()
+            val guestPassword = inputGuestPassword.text.toString()
+
+            if (guestSsid.isBlank() || guestPassword.length < 8) {
+                textGuestError.text = "Guest network name can't be empty and password needs at least 8 characters."
+                textGuestError.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+
+            textGuestError.visibility = View.GONE
+            btnAddGuest.isEnabled = false
+            btnRemoveGuest.isEnabled = false
+            progressGuest.visibility = View.VISIBLE
+
+            lifecycleScope.launch {
+                val success = (routerAdapter as? HuaweiRouterAdapter)?.addGuestSsid(guestSsid, guestPassword) ?: false
+                progressGuest.visibility = View.GONE
+                btnAddGuest.isEnabled = true
+                btnRemoveGuest.isEnabled = true
+
+                if (success) {
+                    AlertDialog.Builder(this@WifiSettingsActivity)
+                        .setTitle("Guest WiFi turned on")
+                        .setMessage("Guests can now connect to \"$guestSsid\".")
+                        .setPositiveButton("OK", null)
+                        .show()
+                } else {
+                    textGuestError.text = "Couldn't turn on Guest WiFi. Check your connection and try again."
+                    textGuestError.visibility = View.VISIBLE
+                }
+            }
+        }
+
+        btnRemoveGuest.setOnClickListener {
+            val guestSsid = inputGuestSsid.text.toString().trim()
+            if (guestSsid.isBlank()) {
+                textGuestError.text = "Enter the guest network name to turn it off."
+                textGuestError.visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+
+            textGuestError.visibility = View.GONE
+            btnAddGuest.isEnabled = false
+            btnRemoveGuest.isEnabled = false
+            progressGuest.visibility = View.VISIBLE
+
+            lifecycleScope.launch {
+                val success = (routerAdapter as? HuaweiRouterAdapter)?.deleteGuestSsid(guestSsid) ?: false
+                progressGuest.visibility = View.GONE
+                btnAddGuest.isEnabled = true
+                btnRemoveGuest.isEnabled = true
+
+                if (success) {
+                    AlertDialog.Builder(this@WifiSettingsActivity)
+                        .setTitle("Guest WiFi turned off")
+                        .setMessage("\"$guestSsid\" has been removed.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                } else {
+                    textGuestError.text = "Couldn't turn off Guest WiFi. Check your connection and try again."
+                    textGuestError.visibility = View.VISIBLE
+                }
+            }
+        }
     }
 
     private fun triggerReboot() {
