@@ -300,6 +300,42 @@ class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : Rout
         }
     }
 
+    data class WanInfo(
+        val wanIp: String,
+        val gateway: String,
+        val dns: String,
+        val connectionType: String
+    )
+
+    suspend fun getWanInfo(): WanInfo? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("http://$routerIp/html/bbsp/common/getwanlist.asp")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string() ?: return@withContext null
+
+                val ipRegex = Regex("""\b\d{1,3}(\.\d{1,3}){3}\b""")
+                val allIps = ipRegex.findAll(body).map { it.value }.toList()
+
+                val typeMatch = Regex("""(PPPoE|DHCP|Static|Bridge)""", RegexOption.IGNORE_CASE).find(body)
+
+                WanInfo(
+                    wanIp = allIps.getOrNull(0) ?: "Unknown",
+                    gateway = allIps.getOrNull(1) ?: "Unknown",
+                    dns = allIps.getOrNull(2) ?: "Unknown",
+                    connectionType = typeMatch?.value ?: "Unknown"
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     suspend fun addGuestSsid(ssidName: String, password: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
