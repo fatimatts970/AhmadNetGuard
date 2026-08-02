@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.history.ConnectionMonitorService
+import com.ahmad.netguard.network.HuaweiRouterAdapter
 import com.ahmad.netguard.network.RouterSession
 import com.ahmad.netguard.network.RouterCredentialStore
 import com.google.android.material.snackbar.Snackbar
@@ -134,11 +135,17 @@ class DashboardActivity : AppCompatActivity() {
                 tvOnlineBadge.text = "${onlineDevices.size} online"
 
                 tvRouterStatus.text = "Online"
-                tvInternetStatus.text = "Not available yet"
                 tvWifiStatus.text = if (devices.isNotEmpty()) "Active" else "Unknown"
                 tvUptime.text = "Not available yet"
                 tvDownloadSpeed.text = "Tap to test"
                 tvUploadSpeed.text = "Not available yet"
+
+                val wanInfo = (routerAdapter as? HuaweiRouterAdapter)?.getWanInfo()
+                tvInternetStatus.text = if (wanInfo != null && wanInfo.wanIp != "Unknown") {
+                    "Connected (${wanInfo.wanIp})"
+                } else {
+                    "Not available"
+                }
             } catch (e: Exception) {
                 Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
                     .setAction("Login Again") {
