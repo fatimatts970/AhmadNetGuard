@@ -28,6 +28,10 @@ class WifiSettingsActivity : AppCompatActivity() {
         val progress = findViewById<android.widget.ProgressBar>(R.id.progressWifiSave)
         val textError = findViewById<android.widget.TextView>(R.id.textWifiError)
 
+        findViewById<android.widget.ImageButton>(R.id.btnBack).setOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
+
         btnToggle.setOnClickListener {
             isPasswordVisible = !isPasswordVisible
             inputPassword.inputType = if (isPasswordVisible) {
@@ -82,6 +86,17 @@ class WifiSettingsActivity : AppCompatActivity() {
         val btnAddGuest = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnAddGuestWifi)
         val btnRemoveGuest = findViewById<com.google.android.material.button.MaterialButton>(R.id.btnRemoveGuestWifi)
         val progressGuest = findViewById<android.widget.ProgressBar>(R.id.progressGuestWifi)
+
+        var isGuestPasswordVisible = false
+        findViewById<android.widget.ImageView>(R.id.btnToggleGuestPassword).setOnClickListener {
+            isGuestPasswordVisible = !isGuestPasswordVisible
+            inputGuestPassword.inputType = if (isGuestPasswordVisible) {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            } else {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+            inputGuestPassword.setSelection(inputGuestPassword.text.length)
+        }
 
         btnAddGuest.setOnClickListener {
             val guestSsid = inputGuestSsid.text.toString().trim()
