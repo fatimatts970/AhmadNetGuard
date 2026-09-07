@@ -1,24 +1,24 @@
 package com.ahmad.netguard.ui
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.ahmad.netguard.databinding.ItemDeviceBinding
 import com.ahmad.netguard.model.Device
-import com.ahmad.netguard.network.RouterAdapterFactory
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.DeviceViewHolder>() {
+class DeviceListAdapter(
+    private val devices: List<Device>,
+    private val onBlockClick: (Device) -> Unit,
+    private val onItemClick: (Device) -> Unit,
+    private val onRenameClick: (Device) -> Unit
+) : RecyclerView.Adapter<DeviceListAdapter.DeviceViewHolder>() {
 
-    private var items = listOf<Device>()
+    private val processingMacs = mutableSetOf<String>()
 
-    fun submitList(list: List<Device>) {
-        items = list
+    // Block/Unblock request poori hone ke baad MainActivity ye call karta hai
+    // taake button dobara enable ho jaye
+    fun clearProcessingState() {
+        processingMacs.clear()
         notifyDataSetChanged()
     }
 
@@ -28,58 +28,31 @@ class DeviceListAdapter : RecyclerView.Adapter<DeviceListAdapter.DeviceViewHolde
     }
 
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
-        holder.bind(items[position])
+        holder.bind(devices[position])
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = devices.size
 
-    class DeviceViewHolder(private val binding: ItemDeviceBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class DeviceViewHolder(private val binding: ItemDeviceBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
         fun bind(device: Device) {
-            binding.tvDeviceName.text = device.hostName.ifEmpty { "Unknown Device" }
-            binding.tvDeviceIp.text = "${device.ip} • ${device.mac}"
+            binding.tvDeviceName.text = device.displayName.ifEmpty { "Unknown Device" }
+            binding.tvDeviceIp.text = "${device.ipAddress} • ${device.macAddress}"
 
-            // Block/Unblock button text
-            if (device.isBlocked) {
-                binding.btnBlock.text = "Unblock"
-            } else {
-                binding.btnBlock.text = "Block"
+            binding.btnBlock.isEnabled = !processingMacs.contains(device.macAddress)
+            binding.btnBlock.text = if (device.isBlocked) "Unblock" else "Block"
+
+            binding.root.setOnClickListener { onItemClick(device) }
+            binding.root.setOnLongClickListener {
+                onRenameClick(device)
+                true
             }
 
             binding.btnBlock.setOnClickListener {
-                val mac = device.mac
-                val currentBlocked = device.isBlocked
-                val action = if (currentBlocked) "unblock" else "block"
-
-                // Disable button to prevent double click
-                binding.btnBlock.isEnabled = false
-
-                CoroutineScope(Dispatchers.IO).launch {
-                    val router = RouterAdapterFactory.getAdapter()
-                    val success = if (currentBlocked) {
-                        router.unblockDevice(mac)
-                    } else {
-                        router.blockDevice(mac)
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        binding.btnBlock.isEnabled = true
-                        if (success) {
-                            Toast.makeText(
-                                binding.root.context,
-                                "Device $action successful!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            // Update device state locally (optional)
-                            // We'll just refresh list from Dashboard
-                        } else {
-                            Toast.makeText(
-                                binding.root.context,
-                                "$action failed!",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
+                processingMacs.add(device.macAddress)
+                notifyItemChanged(bindingAdapterPosition)
+                onBlockClick(device)
             }
         }
     }
