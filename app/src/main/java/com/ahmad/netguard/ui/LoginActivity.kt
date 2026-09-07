@@ -1,150 +1,55 @@
 package com.ahmad.netguard.ui
 
-import android.content.Context
 import android.content.Intent
-import android.net.wifi.WifiManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.databinding.ActivityLoginBinding
-import com.ahmad.netguard.history.AppDatabase
-import com.ahmad.netguard.history.AppLog
-import com.ahmad.netguard.network.RouterSession
+import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
-import java.net.InetAddress
 
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
-    private lateinit var credentialStore: RouterCredentialStore
-    private val router = RouterSession.adapter
+    private lateinit var credStore: RouterCredentialStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        credentialStore = RouterCredentialStore(this)
 
-        if (credentialStore.hasSavedCredentials()) {
-            binding.inputRouterIp.setText(credentialStore.getRouterIp())
-            binding.inputUsername.setText(credentialStore.getUsername())
-            binding.inputPassword.setText(credentialStore.getPassword())
-        } else {
-            detectGatewayIp()?.let { binding.inputRouterIp.setText(it) }
-        }
+        credStore = RouterCredentialStore(this)
 
-        if (BiometricHelper.canUseBiometrics(this) && credentialStore.hasSavedCredentials()) {
-            binding.btnUseBiometric.visibility = android.view.View.VISIBLE
-            binding.btnUseBiometric.setOnClickListener { promptBiometric() }
-            promptBiometric()
-        }
+        binding.btnLogin.setOnClickListener {
+            val gateway = binding.etGateway.text.toString().trim()
+            val pass = binding.etPassword.text.toString().trim()
 
-        binding.btnConnect.setOnClickListener {
-            attemptLogin(useSaved = false)
-        }
+            if (gateway.isNotEmpty() && pass.isNotEmpty()) {
+                // Perform actual login
+                lifecycleScope.launch {
+                    binding.btnLogin.isEnabled = false
+                    binding.btnLogin.text = "Logging in..."
 
-        setupPasswordToggle()
-    }
+                    val adapter = RouterAdapterFactory.getAdapter()
+                    val success = adapter.login(gateway, "admin", pass)
 
-    private fun promptBiometric() {
-        BiometricHelper.prompt(
-            activity = this,
-            onSuccess = { attemptLogin(useSaved = true) },
-            onFailure = {
-                showError("Biometric cancelled. You can sign in with your router IP, username and password below.")
-            }
-        )
-    }
+                    binding.btnLogin.isEnabled = true
+                    binding.btnLogin.text = "Connect to Router"
 
-    private var isPasswordVisible = false
-
-    private fun setupPasswordToggle() {
-        binding.btnTogglePassword.setOnClickListener {
-            isPasswordVisible = !isPasswordVisible
-            if (isPasswordVisible) {
-                binding.inputPassword.inputType =
-                    android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-                binding.btnTogglePassword.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+                    if (success) {
+                        credStore.saveCredentials(gateway, "admin", pass)
+                        Toast.makeText(this@LoginActivity, "Login Successful!", Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this@LoginActivity, DashboardActivity::class.java))
+                        finish()
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Login Failed! Check IP/Password.", Toast.LENGTH_SHORT).show()
+                    }
+                }
             } else {
-                binding.inputPassword.inputType =
-                    android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-                binding.btnTogglePassword.setImageResource(android.R.drawable.ic_menu_view)
-            }
-            binding.inputPassword.setSelection(binding.inputPassword.text.length)
-        }
-    }
-
-    private fun detectGatewayIp(): String? {
-        return try {
-            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            val gateway = wifiManager.dhcpInfo?.gateway ?: return null
-            if (gateway == 0) return null
-            val bytes = byteArrayOf(
-                (gateway and 0xFF).toByte(),
-                (gateway shr 8 and 0xFF).toByte(),
-                (gateway shr 16 and 0xFF).toByte(),
-                (gateway shr 24 and 0xFF).toByte()
-            )
-            InetAddress.getByAddress(bytes).hostAddress
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun attemptLogin(useSaved: Boolean) {
-        val ip: String
-        val username: String
-        val password: String
-
-        if (useSaved) {
-            ip = credentialStore.getRouterIp()
-            username = credentialStore.getUsername()
-            password = credentialStore.getPassword()
-        } else {
-            ip = binding.inputRouterIp.text.toString().trim().ifBlank { "192.168.100.1" }
-            username = binding.inputUsername.text.toString().trim()
-            password = binding.inputPassword.text.toString()
-
-            if (username.isBlank() || password.isBlank()) {
-                showError("Username and password can't be empty.")
-                return
+                Toast.makeText(this, "Enter IP and Password", Toast.LENGTH_SHORT).show()
             }
         }
-
-        setLoading(true)
-        lifecycleScope.launch {
-            val success = router.login(ip, username, password)
-            setLoading(false)
-
-            val db = AppDatabase.getInstance(applicationContext)
-            db.appLogDao().insert(
-                AppLog(
-                    type = "LOGIN",
-                    message = if (success) "Signed in to router at $ip" else "Login failed for $ip",
-                    success = success,
-                    timestampMillis = System.currentTimeMillis()
-                )
-            )
-
-            if (success) {
-                credentialStore.save(ip, username, password)
-                startActivity(Intent(this@LoginActivity, DashboardActivity::class.java))
-                finish()
-            } else {
-                showError("Could not connect. Check the router IP, username and password, and that your phone is on the router's WiFi.")
-            }
-        }
-    }
-
-    private fun setLoading(loading: Boolean) {
-        binding.progressConnecting.visibility = if (loading) android.view.View.VISIBLE else android.view.View.GONE
-        binding.btnConnect.isEnabled = !loading
-        binding.btnConnect.text = if (loading) "Connecting…" else "Connect"
-    }
-
-    private fun showError(message: String) {
-        binding.textLoginError.text = message
-        binding.textLoginError.visibility = android.view.View.VISIBLE
     }
 }
