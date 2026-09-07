@@ -4,9 +4,20 @@ object RouterAdapterFactory {
 
     enum class Brand { HUAWEI }
 
-    fun create(brand: Brand = Brand.HUAWEI, routerIp: String = "192.168.100.1"): RouterAdapter {
+    @Volatile
+    private var instance: RouterAdapter? = null
+
+    // Sab activities/adapters isi ek shared instance ko use karte hain
+    // taake login ke baad session (cookie/token) sab jagah zinda rahe.
+    fun getAdapter(): RouterAdapter {
+        return instance ?: synchronized(this) {
+            instance ?: create().also { instance = it }
+        }
+    }
+
+    fun create(brand: Brand = Brand.HUAWEI): RouterAdapter {
         return when (brand) {
-            Brand.HUAWEI -> HuaweiRouterAdapter(routerIp)
+            Brand.HUAWEI -> HuaweiRouterAdapter()
         }
     }
 }
