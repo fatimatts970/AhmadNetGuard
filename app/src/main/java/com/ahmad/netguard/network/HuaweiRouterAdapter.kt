@@ -75,7 +75,7 @@ class HuaweiRouterAdapter : RouterAdapter {
         }
 
     // ==================== GET CONNECTED DEVICES ====================
-    override suspend fun getConnectedDevices(): List<Device> =
+    override suspend fun getDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
@@ -105,7 +105,7 @@ class HuaweiRouterAdapter : RouterAdapter {
             val mac = match.groupValues[2].trim()
             val name = match.groupValues[3].trim()
             if (mac.isNotEmpty() && ip.isNotEmpty()) {
-                devices.add(Device(mac, ip, name))
+                devices.add(Device(macAddress = mac, displayName = name, ipAddress = ip))
             }
         }
         return devices
