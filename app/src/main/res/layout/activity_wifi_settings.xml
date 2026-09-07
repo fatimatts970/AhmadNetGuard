@@ -29,7 +29,7 @@
                     android:background="@drawable/bg_icon_rounded"
                     android:contentDescription="Back"
                     android:padding="8dp"
-                    android:src="@android:drawable/ic_media_previous"
+                    android:src="@drawable/ic_back_arrow"
                     app:tint="@color/text_primary" />
 
                 <LinearLayout
