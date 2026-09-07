@@ -3,70 +3,116 @@ package com.ahmad.netguard.network
 import com.ahmad.netguard.model.Device
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Cookie
+import okhttp3.CookieJar
 import okhttp3.FormBody
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
 class HuaweiRouterAdapter : RouterAdapter {
 
+    private val sessionCookieStore = mutableMapOf<String, MutableList<Cookie>>()
+
+    private val browserUserAgent =
+        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .cookieJar(object : CookieJar {
+            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                sessionCookieStore[url.host] = cookies.toMutableList()
+            }
+
+            override fun loadForRequest(url: HttpUrl): List<Cookie> {
+                return sessionCookieStore[url.host] ?: emptyList()
+            }
+        })
         .build()
 
     private val session = RouterSession()
 
-    // Gateway default
     private var gateway: String = "192.168.100.1"
 
-    // ==================== LOGIN ====================
+    private fun injectPreLoginCookie(routerIp: String) {
+        val cookie = Cookie.Builder()
+            .name("Cookie")
+            .value("body:Language:english:id=-1")
+            .domain(routerIp)
+            .path("/")
+            .build()
+        val existing = sessionCookieStore.getOrPut(routerIp) { mutableListOf() }
+        existing.removeAll { it.name == "Cookie" }
+        existing.add(cookie)
+    }
+
     override suspend fun login(gateway: String, user: String, pass: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 this@HuaweiRouterAdapter.gateway = gateway
+                session.gateway = gateway
 
-                // Step 1: Get Token
+                val initRequest = Request.Builder()
+                    .url("http://$gateway/login.asp")
+                    .header("User-Agent", browserUserAgent)
+                    .get()
+                    .build()
+                client.newCall(initRequest).execute().close()
+
                 val tokenRequest = Request.Builder()
                     .url("http://$gateway/asp/GetRandCount.asp")
+                    .header("User-Agent", browserUserAgent)
+                    .post(FormBody.Builder().build())
                     .build()
 
-                val tokenResponse = client.newCall(tokenRequest).execute()
-                val tokenBody = tokenResponse.body?.string() ?: ""
+                val token = client.newCall(tokenRequest).execute().use { response ->
+                    response.body?.string()?.trim() ?: ""
+                }
+                if (token.isEmpty()) return@withContext false
 
-                val token = tokenBody.substringAfter(
-                    "<input type=\"hidden\" name=\"x.X_HW_Token\" value=\""
-                ).substringBefore("\"")
+                injectPreLoginCookie(gateway)
 
-                // Step 2: Login POST
+                val encodedPassword = android.util.Base64.encodeToString(
+                    pass.toByteArray(Charsets.UTF_8),
+                    android.util.Base64.NO_WRAP
+                )
+
                 val formBody = FormBody.Builder()
                     .add("UserName", user)
-                    .add("PassWord", pass)
+                    .add("PassWord", encodedPassword)
                     .add("x.X_HW_Token", token)
                     .build()
 
                 val loginRequest = Request.Builder()
                     .url("http://$gateway/login.cgi")
-                    .addHeader("Cookie", "body:Language:english:id=-1")
+                    .header("User-Agent", browserUserAgent)
+                    .header("Referer", "http://$gateway/login.asp")
+                    .header("Origin", "http://$gateway")
                     .post(formBody)
                     .build()
 
-                val loginResponse = client.newCall(loginRequest).execute()
-                val responseBody = loginResponse.body?.string() ?: ""
+                client.newCall(loginRequest).execute().close()
 
-                val success = responseBody.contains("top.location.href") ||
-                        responseBody.contains("parent.location") ||
-                        loginResponse.code == 302
+                val checkRequest = Request.Builder()
+                    .url("http://$gateway/index.asp")
+                    .header("User-Agent", browserUserAgent)
+                    .get()
+                    .build()
 
-                // Extract session cookie
-                val setCookie = loginResponse.headers["Set-Cookie"] ?: ""
-                val sessionId = setCookie.substringBefore(";")
+                val success = client.newCall(checkRequest).execute().use { response ->
+                    val finalUrl = response.request.url.toString()
+                    val body = response.body?.string() ?: ""
+                    val bouncedToLogin = finalUrl.contains("login.asp", ignoreCase = true) ||
+                        body.contains("login.asp", ignoreCase = true)
+                    response.isSuccessful && !bouncedToLogin
+                }
 
                 session.isLoggedIn = success
                 session.token = token
-                session.sessionInfo = sessionId
-                session.gateway = gateway
-
                 success
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -74,13 +120,12 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== GET CONNECTED DEVICES ====================
     override suspend fun getDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
                     .url("http://${session.gateway}/html/status/GetLanUserDevInfo.asp")
-                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .header("User-Agent", browserUserAgent)
                     .build()
 
                 val response = client.newCall(request).execute()
@@ -111,7 +156,6 @@ class HuaweiRouterAdapter : RouterAdapter {
         return devices
     }
 
-    // ==================== BLOCK DEVICE ====================
     override suspend fun blockDevice(mac: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
@@ -123,7 +167,7 @@ class HuaweiRouterAdapter : RouterAdapter {
 
                 val request = Request.Builder()
                     .url("http://${session.gateway}/html/bbsp/wlanmacfilter/add.cgi")
-                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .header("User-Agent", browserUserAgent)
                     .post(formBody)
                     .build()
 
@@ -135,7 +179,6 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== UNBLOCK DEVICE ====================
     override suspend fun unblockDevice(mac: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
@@ -145,7 +188,7 @@ class HuaweiRouterAdapter : RouterAdapter {
 
                 val request = Request.Builder()
                     .url("http://${session.gateway}/html/bbsp/wlanmacfilter/del.cgi")
-                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .header("User-Agent", browserUserAgent)
                     .post(formBody)
                     .build()
 
@@ -157,13 +200,12 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== RESTART ROUTER ====================
     override suspend fun restartRouter(): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
                     .url("http://${session.gateway}/html/ssmp/reboot/set.cgi")
-                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .header("User-Agent", browserUserAgent)
                     .post(FormBody.Builder().build())
                     .build()
 
@@ -175,7 +217,6 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== UPDATE WIFI SETTINGS ====================
     override suspend fun updateWifiSettings(ssid: String, key: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
@@ -187,7 +228,7 @@ class HuaweiRouterAdapter : RouterAdapter {
 
                 val request = Request.Builder()
                     .url("http://${session.gateway}/html/amp/wlanbasic/set.cgi")
-                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .header("User-Agent", browserUserAgent)
                     .post(formBody)
                     .build()
 
