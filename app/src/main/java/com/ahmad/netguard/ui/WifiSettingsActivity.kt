@@ -1,6 +1,7 @@
 package com.ahmad.netguard.ui
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -17,31 +18,47 @@ class WifiSettingsActivity : AppCompatActivity() {
         binding = ActivityWifiSettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.btnSaveWifi.setOnClickListener {
-            val ssid = binding.etSsid.text.toString().trim()
-            val password = binding.etWifiPassword.text.toString().trim()
+        binding.btnBack.setOnClickListener { finish() }
+
+        binding.btnSaveWifiSettings.setOnClickListener {
+            val ssid = binding.inputSsid.text.toString().trim()
+            val password = binding.inputWifiPassword.text.toString().trim()
 
             if (ssid.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "SSID and Password required", Toast.LENGTH_SHORT).show()
+                binding.textWifiError.text = "SSID and Password required"
+                binding.textWifiError.visibility = View.VISIBLE
                 return@setOnClickListener
             }
 
             lifecycleScope.launch {
-                binding.btnSaveWifi.isEnabled = false
-                binding.btnSaveWifi.text = "Saving..."
+                binding.btnSaveWifiSettings.isEnabled = false
+                binding.progressWifiSave.visibility = View.VISIBLE
+                binding.textWifiError.visibility = View.GONE
 
                 val router = RouterAdapterFactory.getAdapter()
                 val success = router.updateWifiSettings(ssid, password)
 
-                binding.btnSaveWifi.isEnabled = true
-                binding.btnSaveWifi.text = "Save & Reboot"
+                binding.btnSaveWifiSettings.isEnabled = true
+                binding.progressWifiSave.visibility = View.GONE
 
                 if (success) {
                     Toast.makeText(this@WifiSettingsActivity, "Wi-Fi Settings Updated!", Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
-                    Toast.makeText(this@WifiSettingsActivity, "Update Failed! Check credentials.", Toast.LENGTH_SHORT).show()
+                    binding.textWifiError.text = "Update Failed! Check credentials."
+                    binding.textWifiError.visibility = View.VISIBLE
                 }
+            }
+        }
+
+        binding.btnRebootRouter.setOnClickListener {
+            lifecycleScope.launch {
+                binding.btnRebootRouter.isEnabled = false
+                val router = RouterAdapterFactory.getAdapter()
+                val success = router.restartRouter()
+                binding.btnRebootRouter.isEnabled = true
+                val msg = if (success) "Router is rebooting..." else "Reboot failed! Check connection."
+                Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
             }
         }
     }
