@@ -10,14 +10,14 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.ahmad.netguard.model.Device
-import com.ahmad.netguard.network.RouterSession
+import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.ui.MainActivity
 import kotlinx.coroutines.*
 
 class ConnectionMonitorService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val routerAdapter = RouterSession.adapter
+    private val routerAdapter = RouterAdapterFactory.getAdapter()
     private val knownDevices = mutableMapOf<String, Device>()
     private var isFirstPoll = true
 
