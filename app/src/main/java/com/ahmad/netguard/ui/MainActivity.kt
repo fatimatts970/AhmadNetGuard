@@ -27,7 +27,7 @@ import com.ahmad.netguard.history.AppLog
 import com.ahmad.netguard.hostport.HostportRisk
 import com.ahmad.netguard.hostport.HostportSuspicion
 import com.ahmad.netguard.network.DeviceNameStore
-import com.ahmad.netguard.network.RouterSession
+import com.ahmad.netguard.network.RouterAdapterFactory
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -41,7 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSort: ImageButton
     private lateinit var btnBackup: ImageButton
 
-    private val routerAdapter = RouterSession.adapter
+    private val routerAdapter = RouterAdapterFactory.getAdapter()
     private lateinit var nameStore: DeviceNameStore
 
     private val allDevices = mutableListOf<Device>()
