@@ -2,7 +2,7 @@ package com.ahmad.netguard.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.databinding.ActivityLoginBinding
@@ -22,34 +22,61 @@ class LoginActivity : AppCompatActivity() {
 
         credStore = RouterCredentialStore(this)
 
-        binding.btnLogin.setOnClickListener {
-            val gateway = binding.etGateway.text.toString().trim()
-            val pass = binding.etPassword.text.toString().trim()
+        val savedGateway = credStore.getGateway()
+        val savedUsername = credStore.getUsername()
+        if (savedGateway.isNotBlank()) binding.inputRouterIp.setText(savedGateway)
+        if (savedUsername.isNotBlank()) binding.inputUsername.setText(savedUsername)
 
-            if (gateway.isNotEmpty() && pass.isNotEmpty()) {
-                // Perform actual login
-                lifecycleScope.launch {
-                    binding.btnLogin.isEnabled = false
-                    binding.btnLogin.text = "Logging in..."
-
-                    val adapter = RouterAdapterFactory.getAdapter()
-                    val success = adapter.login(gateway, "admin", pass)
-
-                    binding.btnLogin.isEnabled = true
-                    binding.btnLogin.text = "Connect to Router"
-
-                    if (success) {
-                        credStore.saveCredentials(gateway, "admin", pass)
-                        Toast.makeText(this@LoginActivity, "Login Successful!", Toast.LENGTH_SHORT).show()
-                        startActivity(Intent(this@LoginActivity, DashboardActivity::class.java))
-                        finish()
-                    } else {
-                        Toast.makeText(this@LoginActivity, "Login Failed! Check IP/Password.", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } else {
-                Toast.makeText(this, "Enter IP and Password", Toast.LENGTH_SHORT).show()
+        if (BiometricHelper.canUseBiometrics(this) && credStore.getPassword().isNotBlank()) {
+            binding.btnUseBiometric.visibility = View.VISIBLE
+            binding.btnUseBiometric.setOnClickListener {
+                BiometricHelper.prompt(
+                    activity = this,
+                    onSuccess = {
+                        attemptLogin(credStore.getGateway(), credStore.getUsername(), credStore.getPassword())
+                    },
+                    onFailure = { showError("Biometric authentication failed") }
+                )
             }
         }
+
+        binding.btnConnect.setOnClickListener {
+            val gateway = binding.inputRouterIp.text.toString().trim()
+            val username = binding.inputUsername.text.toString().trim()
+            val pass = binding.inputPassword.text.toString().trim()
+
+            if (gateway.isEmpty() || pass.isEmpty()) {
+                showError("Enter IP and Password")
+                return@setOnClickListener
+            }
+            attemptLogin(gateway, username.ifEmpty { "admin" }, pass)
+        }
+    }
+
+    private fun attemptLogin(gateway: String, username: String, pass: String) {
+        lifecycleScope.launch {
+            binding.btnConnect.isEnabled = false
+            binding.progressConnecting.visibility = View.VISIBLE
+            binding.textLoginError.visibility = View.GONE
+
+            val adapter = RouterAdapterFactory.getAdapter()
+            val success = adapter.login(gateway, username, pass)
+
+            binding.btnConnect.isEnabled = true
+            binding.progressConnecting.visibility = View.GONE
+
+            if (success) {
+                credStore.saveCredentials(gateway, username, pass)
+                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                finish()
+            } else {
+                showError("Could not connect: check IP, username and password")
+            }
+        }
+    }
+
+    private fun showError(message: String) {
+        binding.textLoginError.text = message
+        binding.textLoginError.visibility = View.VISIBLE
     }
 }
