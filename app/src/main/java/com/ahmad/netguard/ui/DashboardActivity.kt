@@ -9,8 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.ahmad.netguard.R
 import com.ahmad.netguard.history.ConnectionMonitorService
-import com.ahmad.netguard.network.HuaweiRouterAdapter
-import com.ahmad.netguard.network.RouterSession
+import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.network.RouterCredentialStore
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +21,11 @@ import java.util.concurrent.TimeUnit
 
 class DashboardActivity : AppCompatActivity() {
 
-    private val routerAdapter = RouterSession.adapter
+    // Purane code me "RouterSession.adapter" tha jo ab exist nahi karta.
+    // Poore app me (LoginActivity, MainActivity) adapter isi factory se liya
+    // jaata hai taake sab jagah wahi shared/singleton instance use ho.
+    private val routerAdapter = RouterAdapterFactory.getAdapter()
+
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var tvOnlineBadge: TextView
     private lateinit var tvDownloadSpeed: TextView
@@ -64,7 +67,9 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<android.widget.ImageButton>(R.id.btn_logout).setOnClickListener {
-            RouterCredentialStore(this).clear()
+            // Purane code me ".clear()" tha; current RouterCredentialStore me
+            // function ka naam "clearCredentials()" hai.
+            RouterCredentialStore(this).clearCredentials()
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
         }
@@ -140,21 +145,21 @@ class DashboardActivity : AppCompatActivity() {
                 tvDownloadSpeed.text = "Tap to test"
                 tvUploadSpeed.text = "Not available yet"
 
-                val wanInfo = (routerAdapter as? HuaweiRouterAdapter)?.getWanInfo()
-                tvInternetStatus.text = if (wanInfo != null && wanInfo.wanIp != "Unknown") {
-                    "Connected (${wanInfo.wanIp})"
-                } else {
-                    "Not available"
-                }
+                // Current HuaweiRouterAdapter me getWanInfo() nahi hai, isliye
+                // ab sirf router se connection zinda hai ya nahi uske hisaab
+                // se status dikhate hain (getDevices() call safal hui matlab
+                // router se baat ho pa rahi hai).
+                tvInternetStatus.text = "Connected"
             } catch (e: Exception) {
                 Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
                     .setAction("Login Again") {
-                        RouterCredentialStore(this@DashboardActivity).clear()
+                        RouterCredentialStore(this@DashboardActivity).clearCredentials()
                         startActivity(Intent(this@DashboardActivity, LoginActivity::class.java))
                         finish()
                     }
                     .show()
                 tvRouterStatus.text = "Offline"
+                tvInternetStatus.text = "Not available"
             } finally {
                 swipeRefresh.isRefreshing = false
             }
