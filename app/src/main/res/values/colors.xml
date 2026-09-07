@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- AhmadNetGuard Custom Colors -->
     <color name="primary">#0F172A</color>
     <color name="primary_variant">#1E293B</color>
     <color name="accent">#38BDF8</color>
@@ -10,4 +11,8 @@
     <color name="border">#E2E8F0</color>
     <color name="success">#22C55E</color>
     <color name="danger">#EF4444</color>
+
+    <!-- Missing colors jo build error de rahe the -->
+    <color name="brand_dark">#0F172A</color>
+    <color name="bg_screen">#F8FAFC</color>
 </resources>
