@@ -15,4 +15,8 @@
     <!-- Missing colors jo build error de rahe the -->
     <color name="brand_dark">#0F172A</color>
     <color name="bg_screen">#F8FAFC</color>
+    <color name="red_bg">#EF4444</color>
+    <color name="green_bg">#22C55E</color>
+    <color name="card_white">#FFFFFF</color>
+    <color name="green_online">#4ADE80</color>
 </resources>
