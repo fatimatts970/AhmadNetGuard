@@ -23,21 +23,25 @@ class DashboardActivity : AppCompatActivity() {
         binding.rvDevices.layoutManager = LinearLayoutManager(this)
         binding.rvDevices.adapter = adapter
 
-        // Buttons
+        // Button Actions
         binding.btnWifiSettings.setOnClickListener {
             startActivity(Intent(this, WifiSettingsActivity::class.java))
         }
-
         binding.btnLogs.setOnClickListener {
             startActivity(Intent(this, LogsActivity::class.java))
         }
-
         binding.btnHistory.setOnClickListener {
             startActivity(Intent(this, HistoryActivity::class.java))
         }
 
-        // Real devices load karo
+        // Pehli baar load
         loadDevices()
+    }
+
+    // Jab bhi user Dashboard par wapas aaye (WiFi settings ya block ke baad), refresh ho jaye
+    override fun onResume() {
+        super.onResume()
+        loadDevices() // Real-time update ke liye
     }
 
     private fun loadDevices() {
@@ -51,7 +55,7 @@ class DashboardActivity : AppCompatActivity() {
                     Toast.makeText(this@DashboardActivity, "No devices found or check login", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@DashboardActivity, "Error loading devices: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@DashboardActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
