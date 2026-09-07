@@ -3,526 +3,199 @@ package com.ahmad.netguard.network
 import com.ahmad.netguard.model.Device
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Cookie
-import okhttp3.CookieJar
 import okhttp3.FormBody
-import okhttp3.HttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
-class HuaweiRouterAdapter(private var routerIp: String = "192.168.100.1") : RouterAdapter {
-
-    private val sessionCookieStore = mutableMapOf<String, MutableList<Cookie>>()
-
-    private val browserUserAgent =
-        "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+class HuaweiRouterAdapter : RouterAdapter {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .cookieJar(object : CookieJar {
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                sessionCookieStore[url.host] = cookies.toMutableList()
-            }
-
-            override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                return sessionCookieStore[url.host] ?: emptyList()
-            }
-        })
         .build()
 
-    private var csrfToken: String = ""
-    private var username: String = ""
-    private var password: String = ""
+    private val session = RouterSession()
 
-    private suspend fun fetchHwToken(): String = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/asp/GetRandCount.asp")
-                .post(FormBody.Builder().build())
-                .build()
+    // Gateway default
+    private var gateway: String = "192.168.100.1"
 
-            client.newCall(request).execute().use { response ->
-                csrfToken = response.body?.string()?.trim() ?: ""
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return@withContext csrfToken
-    }
-
-    private fun injectPreLoginCookie(routerIp: String) {
-        val cookie = Cookie.Builder()
-            .name("Cookie")
-            .value("body:Language:english:id=-1")
-            .domain(routerIp)
-            .path("/")
-            .build()
-        val existing = sessionCookieStore.getOrPut(routerIp) { mutableListOf() }
-        existing.removeAll { it.name == "Cookie" }
-        existing.add(cookie)
-    }
-
-    override suspend fun login(routerIp: String, username: String, password: String): Boolean =
+    // ==================== LOGIN ====================
+    override suspend fun login(gateway: String, user: String, pass: String): Boolean =
         withContext(Dispatchers.IO) {
-            this@HuaweiRouterAdapter.routerIp = routerIp
-            this@HuaweiRouterAdapter.username = username
-            this@HuaweiRouterAdapter.password = password
             try {
-                val initRequest = Request.Builder()
-                    .url("http://$routerIp/login.asp")
-                    .header("User-Agent", browserUserAgent)
-                    .get()
+                this@HuaweiRouterAdapter.gateway = gateway
+
+                // Step 1: Get Token
+                val tokenRequest = Request.Builder()
+                    .url("http://$gateway/asp/GetRandCount.asp")
                     .build()
-                client.newCall(initRequest).execute().close()
 
-                val token = fetchHwToken()
-                if (token.isEmpty()) return@withContext false
+                val tokenResponse = client.newCall(tokenRequest).execute()
+                val tokenBody = tokenResponse.body?.string() ?: ""
 
-                injectPreLoginCookie(routerIp)
+                val token = tokenBody.substringAfter(
+                    "<input type=\"hidden\" name=\"x.X_HW_Token\" value=\""
+                ).substringBefore("\"")
 
-                val encodedPassword = android.util.Base64.encodeToString(
-                    password.toByteArray(Charsets.UTF_8),
-                    android.util.Base64.NO_WRAP
-                )
-
+                // Step 2: Login POST
                 val formBody = FormBody.Builder()
-                    .add("UserName", username)
-                    .add("PassWord", encodedPassword)
+                    .add("UserName", user)
+                    .add("PassWord", pass)
                     .add("x.X_HW_Token", token)
                     .build()
 
                 val loginRequest = Request.Builder()
-                    .url("http://$routerIp/login.cgi")
-                    .header("User-Agent", browserUserAgent)
-                    .header("Referer", "http://$routerIp/login.asp")
-                    .header("Origin", "http://$routerIp")
+                    .url("http://$gateway/login.cgi")
+                    .addHeader("Cookie", "body:Language:english:id=-1")
                     .post(formBody)
                     .build()
 
-                client.newCall(loginRequest).execute().close()
+                val loginResponse = client.newCall(loginRequest).execute()
+                val responseBody = loginResponse.body?.string() ?: ""
 
-                val checkRequest = Request.Builder()
-                    .url("http://$routerIp/index.asp")
-                    .header("User-Agent", browserUserAgent)
-                    .get()
-                    .build()
+                val success = responseBody.contains("top.location.href") ||
+                        responseBody.contains("parent.location") ||
+                        loginResponse.code == 302
 
-                client.newCall(checkRequest).execute().use { response ->
-                    val finalUrl = response.request.url.toString()
-                    val body = response.body?.string() ?: ""
-                    val bouncedToLogin = finalUrl.contains("login.asp", ignoreCase = true) ||
-                        body.contains("login.asp", ignoreCase = true)
-                    return@withContext response.isSuccessful && !bouncedToLogin
-                }
+                // Extract session cookie
+                val setCookie = loginResponse.headers["Set-Cookie"] ?: ""
+                val sessionId = setCookie.substringBefore(";")
+
+                session.isLoggedIn = success
+                session.token = token
+                session.sessionInfo = sessionId
+                session.gateway = gateway
+
+                success
             } catch (e: Exception) {
                 e.printStackTrace()
-                return@withContext false
+                false
             }
         }
 
-    suspend fun isSessionAlive(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/html/ssmp/common/refreshTime.asp")
-                .header("User-Agent", browserUserAgent)
-                .get()
-                .build()
-            client.newCall(request).execute().use { response ->
-                (response.body?.string()?.trim() ?: "") == "1"
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
-    override suspend fun getDevices(): List<Device> = getConnectedDevices()
-
-    override suspend fun renameDevice(mac: String, newName: String) {
-    }
-
-    override fun brandName(): String = "Huawei"
-
-    suspend fun getConnectedDevices(): List<Device> = withContext(Dispatchers.IO) {
-        val deviceList = mutableListOf<Device>()
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/html/bbsp/common/GetLanUserDevInfo.asp")
-                .get()
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@use
-                val js = response.body?.string() ?: ""
-
-                val macRegex = Regex("([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
-                val ipRegex = Regex("\\b\\d{1,3}(\\.\\d{1,3}){3}\\b")
-                val entryRegex = Regex("new USERDevice\\(([^)]*)\\)")
-
-                for (match in entryRegex.findAll(js)) {
-                    val argsRaw = match.groupValues[1]
-                    val args = argsRaw.split(",").map { it.trim().trim('"', '\'') }
-
-                    val mac = args.firstOrNull { macRegex.matches(it) } ?: continue
-                    val ip = args.firstOrNull { ipRegex.matches(it) } ?: "0.0.0.0"
-                    val name = args.firstOrNull {
-                        it.isNotBlank() && it != mac && it != ip && !it.matches(Regex("^[01]$"))
-                    } ?: "Unknown Device"
-
-                    deviceList.add(
-                        Device(
-                            macAddress = mac,
-                            displayName = name,
-                            ipAddress = ip,
-                            isOnline = true,
-                            isBlocked = false,
-                            isHotspotActive = false
-                        )
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return@withContext deviceList
-    }
-
-    private suspend fun ensureBlacklistModeEnabled(token: String) {
-        try {
-            val formBody = FormBody.Builder()
-                .add("x.MacFilterRight", "1")
-                .add("x.MacFilterPolicy", "1")
-                .add("x.X_HW_Token", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/set.cgi?x=InternetGatewayDevice.X_HW_Security&RequestFile=html/bbsp/macfilter/macfilter.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private suspend fun fetchWifiPageToken(): String = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/html/amp/wlanbasic/WlanBasic.asp")
-                .get()
-                .build()
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: return@withContext ""
-                val match = Regex("""hwonttoken\s*[:=]\s*["']?([a-fA-F0-9]+)["']?""").find(body)
-                match?.groupValues?.get(1) ?: ""
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            ""
-        }
-    }
-
-    suspend fun getCurrentWifiName(): String? = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/html/amp/wlanbasic/WlanBasic.asp")
-                .get()
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val body = response.body?.string() ?: return@withContext null
-
-                val patterns = listOf(
-                    Regex("""w\.SSID\W+["']?([^"'<>,;\s]+)"""),
-                    Regex("""SSID\s*[:=]\s*["']([^"']+)["']"""),
-                    Regex("""name=["']?ssid["']?[^>]*value=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
-                )
-                for (pattern in patterns) {
-                    val match = pattern.find(body)
-                    val candidate = match?.groupValues?.get(1)
-                    val looksLikeRealName = candidate != null &&
-                        candidate.isNotBlank() &&
-                        !candidate.contains("(") &&
-                        !candidate.contains(")")
-                    if (looksLikeRealName) {
-                        return@withContext candidate
-                    }
-                }
-                null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    suspend fun changeWifiSettings(ssid: String, password: String, hideSsid: Boolean = false): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = fetchWifiPageToken()
-            val wlanDomain = "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1"
-
-            val formBody = FormBody.Builder()
-                .add("w.SSID", ssid)
-                .add("k.PreSharedKey", password)
-                .add("w.SSIDAdvertisementEnabled", if (hideSsid) "0" else "1")
-                .add("w.BeaconType", "WPAand11i")
-                .add("w.BasicAuthenticationMode", "PSKAuthentication")
-                .add("w.BasicEncryptionModes", "TKIPandAESEncryption")
-                .add("w.WPAAuthenticationMode", "PSKAuthentication")
-                .add("w.WPAEncryptionModes", "TKIPandAESEncryption")
-                .add("w.IEEE11iAuthenticationMode", "PSKAuthentication")
-                .add("w.IEEE11iEncryptionModes", "TKIPandAESEncryption")
-                .add("w.X_HW_WPAand11iAuthenticationMode", "PSKAuthentication")
-                .add("w.X_HW_WPAand11iEncryptionModes", "TKIPandAESEncryption")
-                .add("w.X_HW_GroupRekey", "3600")
-                .add("hwonttoken", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/html/amp/wlanbasic/set.cgi?y=$wlanDomain&z=$wlanDomain.WPS&k=$wlanDomain.PreSharedKey.1&RequestFile=html/amp/wlanbasic/WlanBasic.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
-    }
-
-    data class WanInfo(
-        val wanIp: String,
-        val gateway: String,
-        val dns: String,
-        val connectionType: String
-    )
-
-    suspend fun getWanInfo(): WanInfo? = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("http://$routerIp/html/bbsp/common/getwanlist.asp")
-                .get()
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val body = response.body?.string() ?: return@withContext null
-
-                val ipRegex = Regex("""\b\d{1,3}(\.\d{1,3}){3}\b""")
-                val allIps = ipRegex.findAll(body).map { it.value }.toList()
-
-                val typeMatch = Regex("""(PPPoE|DHCP|Static|Bridge)""", RegexOption.IGNORE_CASE).find(body)
-
-                WanInfo(
-                    wanIp = allIps.getOrNull(0) ?: "Unknown",
-                    gateway = allIps.getOrNull(1) ?: "Unknown",
-                    dns = allIps.getOrNull(2) ?: "Unknown",
-                    connectionType = typeMatch?.value ?: "Unknown"
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    suspend fun addGuestSsid(ssidName: String, password: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-
-            val formBody = FormBody.Builder()
-                .add("x.SSIDName", ssidName)
-                .add("x.PreSharedKey", password)
-                .add("x.Enable", "1")
-                .add("x.X_HW_Token", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/add.cgi?x=InternetGatewayDevice.LANDevice.1.WLANConfiguration&RequestFile=html/amp/wlanbasic/WlanBasic.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
-    }
-
-    suspend fun deleteGuestSsid(ssidName: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-
-            val formBody = FormBody.Builder()
-                .add("x.SSIDName", ssidName)
-                .add("x.X_HW_Token", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/del.cgi?x=InternetGatewayDevice.LANDevice.1.WLANConfiguration&RequestFile=html/amp/wlanbasic/WlanBasic.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
-    }
-
-    suspend fun addIpFilterRule(ipAddress: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-
-            val formBody = FormBody.Builder()
-                .add("x.DestIPAddress", ipAddress)
-                .add("x.Enable", "1")
-                .add("x.X_HW_Token", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/add.cgi?x=InternetGatewayDevice.X_HW_Security.IpFilterIn&RequestFile=html/security/ipincoming.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
-    }
-
-    suspend fun removeIpFilterRule(ipAddress: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-
-            val formBody = FormBody.Builder()
-                .add("x.DestIPAddress", ipAddress)
-                .add("x.X_HW_Token", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/del.cgi?x=InternetGatewayDevice.X_HW_Security.IpFilterIn&RequestFile=html/security/ipincoming.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
-        }
-    }
-
-    suspend fun changeDhcpSettings(minAddress: String, maxAddress: String, enabled: Boolean): Boolean =
+    // ==================== GET CONNECTED DEVICES ====================
+    override suspend fun getConnectedDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {
-                val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+                val request = Request.Builder()
+                    .url("http://${session.gateway}/html/status/GetLanUserDevInfo.asp")
+                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .build()
 
+                val response = client.newCall(request).execute()
+                val html = response.body?.string() ?: return@withContext emptyList()
+
+                parseDeviceHtml(html)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                emptyList()
+            }
+        }
+
+    private fun parseDeviceHtml(html: String): List<Device> {
+        val devices = mutableListOf<Device>()
+        val pattern = Regex(
+            "<tr>.*?<td>(.*?)</td>.*?<td>(.*?)</td>.*?<td>(.*?)</td>.*?</tr>",
+            RegexOption.DOT_MATCHES_ALL
+        )
+
+        pattern.findAll(html).forEach { match ->
+            val ip = match.groupValues[1].trim()
+            val mac = match.groupValues[2].trim()
+            val name = match.groupValues[3].trim()
+            if (mac.isNotEmpty() && ip.isNotEmpty()) {
+                devices.add(Device(mac, ip, name))
+            }
+        }
+        return devices
+    }
+
+    // ==================== BLOCK DEVICE ====================
+    override suspend fun blockDevice(mac: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
                 val formBody = FormBody.Builder()
-                    .add("z.MinAddress", minAddress)
-                    .add("z.MaxAddress", maxAddress)
-                    .add("y.DHCPEnable", if (enabled) "1" else "0")
-                    .add("x.X_HW_Token", token)
+                    .add("mac", mac)
+                    .add("x.WlanMacFilterPolicy", "0")
+                    .add("x.WlanMacFilterRight", "0")
                     .build()
 
                 val request = Request.Builder()
-                    .url("http://$routerIp/html/bbsp/dhcpservercfg/set.cgi?x=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement.IPInterface.2&y=InternetGatewayDevice.X_HW_DHCPSLVSERVER&z=InternetGatewayDevice.LANDevice.1.LANHostConfigManagement&RequestFile=html/bbsp/dhcpservercfg/dhcp2.asp")
+                    .url("http://${session.gateway}/html/bbsp/wlanmacfilter/add.cgi")
+                    .addHeader("Cookie", session.sessionInfo ?: "")
                     .post(formBody)
                     .build()
 
-                client.newCall(request).execute().use { response ->
-                    return@withContext response.isSuccessful
-                }
+                val response = client.newCall(request).execute()
+                response.isSuccessful
             } catch (e: Exception) {
                 e.printStackTrace()
-                return@withContext false
+                false
             }
         }
 
-    suspend fun rebootRouter(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+    // ==================== UNBLOCK DEVICE ====================
+    override suspend fun unblockDevice(mac: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val formBody = FormBody.Builder()
+                    .add("mac", mac)
+                    .build()
 
-            val formBody = FormBody.Builder()
-                .add("x.X_HW_Token", token)
-                .build()
+                val request = Request.Builder()
+                    .url("http://${session.gateway}/html/bbsp/wlanmacfilter/del.cgi")
+                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .post(formBody)
+                    .build()
 
-            val request = Request.Builder()
-                .url("http://$routerIp/html/ssmp/accoutcfg/set.cgi?x=InternetGatewayDevice.X_HW_DEBUG.SMP.DM.ResetBoard&RequestFile=html/ssmp/accoutcfg/ontmngt.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
+                val response = client.newCall(request).execute()
+                response.isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
         }
-    }
 
-    override suspend fun blockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
-            ensureBlacklistModeEnabled(token)
+    // ==================== RESTART ROUTER ====================
+    override suspend fun restartRouter(): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://${session.gateway}/html/ssmp/reboot/set.cgi")
+                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .post(FormBody.Builder().build())
+                    .build()
 
-            val formBody = FormBody.Builder()
-                .add("x.SourceMACAddress", mac)
-                .add("x.X_HW_Token", token)
-                .build()
-
-            val request = Request.Builder()
-                .url("http://$routerIp/add.cgi?x=InternetGatewayDevice.X_HW_Security.MacFilter&RequestFile=html/bbsp/macfilter/macfilter.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
+                val response = client.newCall(request).execute()
+                response.isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
         }
-    }
 
-    override suspend fun unblockDevice(mac: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val token = if (csrfToken.isEmpty()) fetchHwToken() else csrfToken
+    // ==================== UPDATE WIFI SETTINGS ====================
+    override suspend fun updateWifiSettings(ssid: String, key: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val formBody = FormBody.Builder()
+                    .add("ssid", ssid)
+                    .add("key", key)
+                    .add("RequestFile", "html/amp/wlanbasic/WlanBasic.asp")
+                    .build()
 
-            val formBody = FormBody.Builder()
-                .add("x.SourceMACAddress", mac)
-                .add("x.X_HW_Token", token)
-                .build()
+                val request = Request.Builder()
+                    .url("http://${session.gateway}/html/amp/wlanbasic/set.cgi")
+                    .addHeader("Cookie", session.sessionInfo ?: "")
+                    .post(formBody)
+                    .build()
 
-            val request = Request.Builder()
-                .url("http://$routerIp/del.cgi?x=InternetGatewayDevice.X_HW_Security.MacFilter&RequestFile=html/bbsp/macfilter/macfilter.asp")
-                .post(formBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                return@withContext response.isSuccessful
+                val response = client.newCall(request).execute()
+                response.isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext false
         }
-    }
 }
