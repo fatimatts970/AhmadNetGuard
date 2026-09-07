@@ -10,4 +10,8 @@
     <color name="border">#1F2937</color>
     <color name="success">#4ADE80</color>
     <color name="danger">#F87171</color>
+
+    <!-- Missing colors dark mode -->
+    <color name="brand_dark">#0284C7</color>
+    <color name="bg_screen">#0B0F19</color>
 </resources>
