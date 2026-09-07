@@ -20,7 +20,7 @@
     <color name="card_white">#FFFFFF</color>
     <color name="green_online">#4ADE80</color>
 
-    <!-- Ye 2 colors missing thay, isi wajah se build fail ho raha tha -->
-    <color name="red_blocked">#EF4444</color>
+    <!-- Fixed: red_blocked ab white hai taake red background pe text saaf dikhe -->
+    <color name="red_blocked">#FFFFFF</color>
     <color name="splash_blue">#0F172A</color>
 </resources>
