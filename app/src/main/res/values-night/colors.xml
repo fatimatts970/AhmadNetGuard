@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#0284C7</color>
-    <color name="primary_variant">#0369A1</color>
-    <color name="accent">#38BDF8</color>
+    <color name="primary">#22C55E</color>
+    <color name="primary_variant">#16A34A</color>
+    <color name="accent">#4ADE80</color>
     <color name="background">#0B0F19</color>
     <color name="surface">#111827</color>
     <color name="text_primary">#F9FAFB</color>
@@ -11,15 +11,13 @@
     <color name="success">#4ADE80</color>
     <color name="danger">#F87171</color>
 
-    <!-- Missing colors dark mode -->
-    <color name="brand_dark">#0284C7</color>
+    <color name="brand_dark">#22C55E</color>
     <color name="bg_screen">#0B0F19</color>
     <color name="red_bg">#F87171</color>
-    <color name="green_bg">#4ADE80</color>
+    <color name="green_bg">#14532D</color>
     <color name="card_white">#1F2937</color>
-    <color name="green_online">#34D399</color>
+    <color name="green_online">#4ADE80</color>
 
-    <!-- Fixed: red_blocked ab white hai taake red background pe text saaf dikhe -->
     <color name="red_blocked">#FFFFFF</color>
-    <color name="splash_blue">#38BDF8</color>
+    <color name="splash_blue">#4ADE80</color>
 </resources>
