@@ -119,7 +119,7 @@ class LoginActivity : AppCompatActivity() {
 
             if (success) {
                 credStore.saveCredentials(gateway, username, pass)
-                startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                startActivity(Intent(this@LoginActivity, DashboardActivity::class.java))
                 finish()
             } else {
                 showError("Could not connect: check IP, username and password")
