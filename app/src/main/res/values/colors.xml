@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- AhmadNetGuard Custom Colors -->
-    <color name="primary">#0F172A</color>
-    <color name="primary_variant">#1E293B</color>
-    <color name="accent">#38BDF8</color>
+    <!-- Green theme -->
+    <color name="primary">#16A34A</color>
+    <color name="primary_variant">#15803D</color>
+    <color name="accent">#22C55E</color>
     <color name="background">#F8FAFC</color>
     <color name="surface">#FFFFFF</color>
     <color name="text_primary">#0F172A</color>
@@ -12,15 +12,13 @@
     <color name="success">#22C55E</color>
     <color name="danger">#EF4444</color>
 
-    <!-- Missing colors jo build error de rahe the -->
-    <color name="brand_dark">#0F172A</color>
+    <color name="brand_dark">#16A34A</color>
     <color name="bg_screen">#F8FAFC</color>
     <color name="red_bg">#EF4444</color>
-    <color name="green_bg">#22C55E</color>
+    <color name="green_bg">#DCFCE7</color>
     <color name="card_white">#FFFFFF</color>
-    <color name="green_online">#4ADE80</color>
+    <color name="green_online">#16A34A</color>
 
-    <!-- Fixed: red_blocked ab white hai taake red background pe text saaf dikhe -->
     <color name="red_blocked">#FFFFFF</color>
-    <color name="splash_blue">#0F172A</color>
+    <color name="splash_blue">#16A34A</color>
 </resources>
