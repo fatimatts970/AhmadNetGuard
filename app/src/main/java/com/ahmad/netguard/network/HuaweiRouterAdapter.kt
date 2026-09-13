@@ -20,21 +20,12 @@ class HuaweiRouterAdapter : RouterAdapter {
     private var gateway: String = "192.168.100.1"
     private var sessionCookie: String = "Cookie=body:Language:english:id=-1"
 
-    // ==================== LOGIN ====================
-    // Verified 10-Sep from a real PCAPdroid capture of the OptiLink app talking
-    // to a Huawei HG8326R. Steps:
-    // 1. GET /asp/GetRandCount.asp -> body is the plain-text token (no HTML)
-    // 2. POST /login.cgi with UserName, base64(PassWord), Language, x.X_HW_Token
-    // 3. Response Set-Cookie gives "sid=<token>"; body has
-    //    var pageName = 'index.asp'; -> success
-    //    var pageName = '/';         -> failure
     override suspend fun login(gateway: String, user: String, pass: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 this@HuaweiRouterAdapter.gateway = gateway
                 this@HuaweiRouterAdapter.sessionCookie = "Cookie=body:Language:english:id=-1"
 
-                // Step 1: token
                 val tokenRequest = Request.Builder()
                     .url("http://$gateway/asp/GetRandCount.asp")
                     .addHeader("Cookie", sessionCookie)
@@ -43,7 +34,6 @@ class HuaweiRouterAdapter : RouterAdapter {
                 val token = tokenResponse.body?.string()?.trim() ?: return@withContext false
                 if (token.isEmpty()) return@withContext false
 
-                // Step 2: login (password must be base64-encoded)
                 val encodedPass = Base64.encodeToString(pass.toByteArray(), Base64.NO_WRAP)
                 val formBody = FormBody.Builder()
                     .add("UserName", user)
@@ -57,17 +47,9 @@ class HuaweiRouterAdapter : RouterAdapter {
                     .addHeader("Cookie", sessionCookie)
                     .addHeader("Referer", "http://$gateway/")
                     .post(formBody)
-                    .execute() // placeholder, corrected below
-                    .let { null } // unreachable, real call below
-
-                val realLoginRequest = Request.Builder()
-                    .url("http://$gateway/login.cgi")
-                    .addHeader("Cookie", sessionCookie)
-                    .addHeader("Referer", "http://$gateway/")
-                    .post(formBody)
                     .build()
 
-                val loginResponse = client.newCall(realLoginRequest).execute()
+                val loginResponse = client.newCall(loginRequest).execute()
                 val setCookie = loginResponse.headers["Set-Cookie"] ?: ""
                 val body = loginResponse.body?.string() ?: ""
 
@@ -91,10 +73,6 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== GET CONNECTED DEVICES ====================
-    // Verified: response is JS with lines like new USERDevice("Domain","Ip",
-    // "Mac","Port","IpType","DevType","DevStatus","PortType","Time","HostName",
-    // "IPv4","IPv6","DeviceType"). Special chars come back as \xHH hex escapes.
     override suspend fun getDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {
@@ -133,7 +111,6 @@ class HuaweiRouterAdapter : RouterAdapter {
 
         entryPattern.findAll(html).forEach { match ->
             val inner = match.groupValues[1]
-            // split on ',' that separates quoted fields: "a","b","c"
             val fields = Regex("\"([^\"]*)\"").findAll(inner).map { it.groupValues[1] }.toList()
             if (fields.size < 13) return@forEach
 
@@ -156,14 +133,9 @@ class HuaweiRouterAdapter : RouterAdapter {
         return devices
     }
 
-    // ==================== BLOCK / UNBLOCK DEVICE ====================
-    // Endpoint confirmed from OptiLink's compiled code (strings dump), exact
-    // policy/right values not yet verified against a real block action.
-    override suspend fun blockDevice(mac: String): Boolean =
-        setMacFilter(mac, block = true)
+    override suspend fun blockDevice(mac: String): Boolean = setMacFilter(mac, block = true)
 
-    override suspend fun unblockDevice(mac: String): Boolean =
-        setMacFilter(mac, block = false)
+    override suspend fun unblockDevice(mac: String): Boolean = setMacFilter(mac, block = false)
 
     private suspend fun setMacFilter(mac: String, block: Boolean): Boolean =
         withContext(Dispatchers.IO) {
@@ -188,8 +160,6 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== RESTART ROUTER ====================
-    // Endpoint confirmed from OptiLink's compiled code.
     override suspend fun restartRouter(): Boolean =
         withContext(Dispatchers.IO) {
             try {
@@ -207,9 +177,6 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
-    // ==================== UPDATE WIFI SETTINGS ====================
-    // Endpoint + field names confirmed from OptiLink's compiled code, exact
-    // save flow not yet verified against a real save action.
     override suspend fun updateWifiSettings(ssid: String, key: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
