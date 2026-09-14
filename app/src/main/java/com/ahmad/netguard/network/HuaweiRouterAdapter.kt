@@ -207,6 +207,25 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
+    override suspend fun getBlockedMacs(): Set<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$gateway/html/bbsp/wlanmacfilter/wlanmacfilter.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val html = client.newCall(request).execute().body?.string() ?: return@withContext emptySet()
+                val pattern = Regex("new stMacFilter\\(\"([^\"]+)\",\"[^\"]*\",\"([^\"]+)\"\\)")
+                pattern.findAll(html)
+                    .map { unescapeHex(it.groupValues[2]).uppercase() }
+                    .toSet()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                emptySet()
+            }
+        }
+
     override suspend fun restartRouter(): Boolean =
         withContext(Dispatchers.IO) {
             try {

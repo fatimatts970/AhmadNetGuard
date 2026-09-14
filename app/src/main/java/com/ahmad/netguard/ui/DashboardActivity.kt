@@ -80,6 +80,7 @@ class DashboardActivity : AppCompatActivity() {
         setupMoreSection()
         startHistoryTracking()
         loadDashboardData()
+        runSpeedTest()
 
         tvDownloadSpeed.setOnClickListener { runSpeedTest() }
     }

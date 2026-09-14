@@ -43,12 +43,12 @@ class DeviceListAdapter(
             binding.btnBlock.isEnabled = !processingMacs.contains(device.macAddress)
             binding.btnBlock.text = if (device.isBlocked) "Unblock" else "Block"
 
-            binding.root.setOnClickListener { onItemClick(device) }
             binding.root.setOnLongClickListener {
                 onRenameClick(device)
                 true
             }
             binding.btnRename.setOnClickListener { onRenameClick(device) }
+            binding.btnViewDetails.setOnClickListener { onItemClick(device) }
 
             binding.btnBlock.setOnClickListener {
                 processingMacs.add(device.macAddress)

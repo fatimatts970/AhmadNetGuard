@@ -37,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rvDevices: RecyclerView
     private lateinit var emptyStateLayout: LinearLayout
     private lateinit var tvDeviceCountHeader: TextView
+    private lateinit var tvConnectedCount: TextView
+    private lateinit var tvBlockedCount: TextView
     private lateinit var etSearch: EditText
     private lateinit var btnSort: ImageButton
     private lateinit var btnBackup: ImageButton
@@ -61,6 +63,8 @@ class MainActivity : AppCompatActivity() {
         rvDevices = findViewById(R.id.rvDevices)
         emptyStateLayout = findViewById(R.id.emptyStateLayout)
         tvDeviceCountHeader = findViewById(R.id.tvDeviceCountHeader)
+        tvConnectedCount = findViewById(R.id.tvConnectedCount)
+        tvBlockedCount = findViewById(R.id.tvBlockedCount)
         etSearch = findViewById(R.id.etSearchDevices)
         btnSort = findViewById(R.id.btnSort)
         btnBackup = findViewById(R.id.btnBackup)
@@ -201,6 +205,9 @@ class MainActivity : AppCompatActivity() {
             )
             SortOption.STATUS -> filtered.sortedByDescending { it.isOnline }
         }
+        // Online devices always come first, then offline/blocked ones — regardless
+        // of the chosen sort, so blocked devices are easy to find together.
+        filtered = filtered.sortedByDescending { it.isOnline }
 
         deviceList.clear()
         deviceList.addAll(filtered)
@@ -214,8 +221,10 @@ class MainActivity : AppCompatActivity() {
             rvDevices.visibility = View.VISIBLE
         }
 
-        tvDeviceCountHeader.text = "Connected Devices: ${allDevices.size}" +
+        tvDeviceCountHeader.text = "Connected Devices: ${allDevices.count { it.isOnline }}" +
             if (searchQuery.isNotBlank()) " (${deviceList.size} shown)" else ""
+        tvConnectedCount.text = allDevices.count { it.isOnline }.toString()
+        tvBlockedCount.text = allDevices.count { it.isBlocked }.toString()
     }
 
     private fun ipSortKey(ip: String): List<Int> =
@@ -226,10 +235,12 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             val db = AppDatabase.getInstance(applicationContext)
+            val blockedMacs = routerAdapter.getBlockedMacs()
             val freshDevices = routerAdapter.getDevices().map { device ->
                 var d = device
                 val savedName = nameStore.getCustomName(device.macAddress)
                 if (savedName != null) d = d.copy(displayName = savedName)
+                d.isBlocked = blockedMacs.contains(device.macAddress.uppercase())
 
                 val firstEvent = db.connectionEventDao().getFirstEventForDevice(device.macAddress)
                 val lastEvent = db.connectionEventDao().getLastEventForDevice(device.macAddress)
@@ -255,10 +266,25 @@ class MainActivity : AppCompatActivity() {
 
                 d
             }
+
+            // Blocked devices don't show up in the live connected list anymore (router
+            // drops them from WiFi once blacklisted), so add them back in as offline
+            // entries — otherwise there'd be no way to find and unblock them.
+            val knownMacs = freshDevices.map { it.macAddress.uppercase() }.toSet()
+            val offlineBlocked = blockedMacs.filter { it !in knownMacs }.map { mac ->
+                Device(
+                    macAddress = mac,
+                    displayName = nameStore.getCustomName(mac) ?: "Unknown Device",
+                    ipAddress = "—",
+                    isOnline = false,
+                    isBlocked = true
+                )
+            }
+
             swipeRefreshLayout.isRefreshing = false
 
             allDevices.clear()
-            allDevices.addAll(freshDevices)
+            allDevices.addAll(freshDevices + offlineBlocked)
             applyFilterAndSort()
         }
     }
@@ -286,6 +312,7 @@ class MainActivity : AppCompatActivity() {
                 device.isBlocked = !device.isBlocked
                 val statusMsg = if (device.isBlocked) "Blocked" else "Unblocked"
                 Snackbar.make(rvDevices, "${device.displayName} $statusMsg successfully!", Snackbar.LENGTH_SHORT).show()
+                applyFilterAndSort()
             } else {
                 Snackbar.make(rvDevices, "Action failed! Check router connection.", Snackbar.LENGTH_LONG).show()
             }
