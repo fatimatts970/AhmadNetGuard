@@ -134,6 +134,20 @@ class HuaweiRouterAdapter : RouterAdapter {
         return devices
     }
 
+    private fun extractToken(html: String): String? =
+        Regex("name=\"onttoken\"[^>]*value=\"([0-9a-fA-F]+)\"").find(html)?.groupValues?.get(1)
+
+    private fun findFilterDomain(html: String, mac: String): String? {
+        val macNorm = mac.uppercase()
+        val pattern = Regex("new stMacFilter\\(\"([^\"]+)\",\"[^\"]*\",\"([^\"]+)\"\\)")
+        pattern.findAll(html).forEach { m ->
+            val domain = m.groupValues[1]
+            val rawMac = unescapeHex(m.groupValues[2]).uppercase()
+            if (rawMac == macNorm) return domain
+        }
+        return null
+    }
+
     override suspend fun blockDevice(mac: String): Boolean = setMacFilter(mac, block = true)
 
     override suspend fun unblockDevice(mac: String): Boolean = setMacFilter(mac, block = false)
@@ -141,20 +155,52 @@ class HuaweiRouterAdapter : RouterAdapter {
     private suspend fun setMacFilter(mac: String, block: Boolean): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val formBody = FormBody.Builder()
-                    .add("x.MACAddress", mac)
-                    .add("x.WlanMacFilterPolicy", "0")
-                    .add("x.WlanMacFilterRight", if (block) "0" else "1")
-                    .build()
-
-                val request = Request.Builder()
-                    .url("http://$gateway/html/bbsp/wlanmacfilter/add.cgi?x=InternetGatewayDevice.X_HW_Security.WLANMacFilter")
+                val pageUrl = "http://$gateway/html/bbsp/wlanmacfilter/wlanmacfilter.asp"
+                val pageRequest = Request.Builder()
+                    .url(pageUrl)
                     .addHeader("Cookie", sessionCookie)
-                    .post(formBody)
+                    .get()
                     .build()
+                val pageHtml = client.newCall(pageRequest).execute().body?.string() ?: return@withContext false
+                val token = extractToken(pageHtml) ?: return@withContext false
 
-                val response = client.newCall(request).execute()
-                response.isSuccessful
+                if (block) {
+                    val addBody = FormBody.Builder()
+                        .add("x.SourceMACAddress", mac.uppercase())
+                        .add("x.SSIDName", "SSID-1")
+                        .add("x.Enable", "1")
+                        .add("x.X_HW_Token", token)
+                        .build()
+                    val addRequest = Request.Builder()
+                        .url("http://$gateway/html/bbsp/wlanmacfilter/add.cgi?x=InternetGatewayDevice.X_HW_Security.WLANMacFilter&RequestFile=html/bbsp/wlanmacfilter/wlanmacfilter.asp")
+                        .addHeader("Cookie", sessionCookie)
+                        .post(addBody)
+                        .build()
+                    if (!client.newCall(addRequest).execute().isSuccessful) return@withContext false
+
+                    val setBody = FormBody.Builder()
+                        .add("x.WlanMacFilterRight", "1")
+                        .add("x.X_HW_Token", token)
+                        .build()
+                    val setRequest = Request.Builder()
+                        .url("http://$gateway/html/bbsp/wlanmacfilter/set.cgi?x=InternetGatewayDevice.X_HW_Security&RequestFile=html/bbsp/wlanmacfilter/wlanmacfilter.asp")
+                        .addHeader("Cookie", sessionCookie)
+                        .post(setBody)
+                        .build()
+                    client.newCall(setRequest).execute().isSuccessful
+                } else {
+                    val domain = findFilterDomain(pageHtml, mac) ?: return@withContext true
+                    val delBody = FormBody.Builder()
+                        .add(domain, "")
+                        .add("x.X_HW_Token", token)
+                        .build()
+                    val delRequest = Request.Builder()
+                        .url("http://$gateway/html/bbsp/wlanmacfilter/del.cgi?x=InternetGatewayDevice.X_HW_Security.WLANMacFilter&RequestFile=html/bbsp/wlanmacfilter/wlanmacfilter.asp")
+                        .addHeader("Cookie", sessionCookie)
+                        .post(delBody)
+                        .build()
+                    client.newCall(delRequest).execute().isSuccessful
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 false

@@ -29,7 +29,7 @@ class HistoryAdapter : RecyclerView.Adapter<HistoryAdapter.EventViewHolder>() {
         val event = events[position]
         val isOnline = event.eventType == "connected"
         val color = holder.binding.root.context.getColor(
-            if (isOnline) R.color.green_online else R.color.red_blocked
+            if (isOnline) R.color.green_online else R.color.danger
         )
         holder.binding.textEvent.text = if (isOnline) "Went Online" else "Went Offline"
         holder.binding.textEvent.setTextColor(color)
