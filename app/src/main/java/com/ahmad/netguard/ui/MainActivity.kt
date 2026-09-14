@@ -67,6 +67,8 @@ class MainActivity : AppCompatActivity() {
 
         nameStore = DeviceNameStore(this)
 
+        findViewById<ImageButton>(R.id.btnBackMain).setOnClickListener { finish() }
+
         setupRecyclerView()
         setupSearch()
         setupSort()

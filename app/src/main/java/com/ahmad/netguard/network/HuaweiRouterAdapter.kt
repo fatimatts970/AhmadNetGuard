@@ -8,6 +8,7 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
+import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 class HuaweiRouterAdapter : RouterAdapter {
@@ -99,7 +100,7 @@ class HuaweiRouterAdapter : RouterAdapter {
         while (matcher.find()) {
             val hex = matcher.group(1)
             val ch = hex.toInt(16).toChar()
-            matcher.appendReplacement(sb, Regex.escape(ch.toString()))
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(ch.toString()))
         }
         matcher.appendTail(sb)
         return sb.toString()

@@ -48,6 +48,7 @@ class DeviceListAdapter(
                 onRenameClick(device)
                 true
             }
+            binding.btnRename.setOnClickListener { onRenameClick(device) }
 
             binding.btnBlock.setOnClickListener {
                 processingMacs.add(device.macAddress)

@@ -27,6 +27,8 @@ class LogsActivity : AppCompatActivity() {
         binding = ActivityLogsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.btnBackLogs.setOnClickListener { finish() }
+
         binding.recyclerLogs.layoutManager = LinearLayoutManager(this)
         binding.recyclerLogs.adapter = adapter
 

@@ -42,6 +42,8 @@ class HistoryActivity : AppCompatActivity() {
         binding = ActivityHistoryBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.btnBackHistory.setOnClickListener { finish() }
+
         mac = intent.getStringExtra(EXTRA_MAC) ?: ""
         val name = intent.getStringExtra(EXTRA_NAME) ?: mac
         binding.textHistoryTitle.text = "$name — History"

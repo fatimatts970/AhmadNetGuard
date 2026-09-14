@@ -30,10 +30,8 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var tvOnlineBadge: TextView
     private lateinit var tvDownloadSpeed: TextView
     private lateinit var tvUploadSpeed: TextView
-    private lateinit var tvUptime: TextView
-    private lateinit var tvInternetStatus: TextView
-    private lateinit var tvRouterStatus: TextView
-    private lateinit var tvWifiStatus: TextView
+    private lateinit var tvModemOnlinePill: TextView
+    private lateinit var tvWanType: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,10 +41,17 @@ class DashboardActivity : AppCompatActivity() {
         tvOnlineBadge = findViewById(R.id.text_online_badge)
         tvDownloadSpeed = findViewById(R.id.text_download_speed)
         tvUploadSpeed = findViewById(R.id.text_upload_speed)
-        tvUptime = findViewById(R.id.text_router_uptime)
-        tvInternetStatus = findViewById(R.id.text_internet_status)
-        tvRouterStatus = findViewById(R.id.text_router_status)
-        tvWifiStatus = findViewById(R.id.text_wifi_status)
+        tvModemOnlinePill = findViewById(R.id.text_modem_online_pill)
+        tvWanType = findViewById(R.id.text_wan_type)
+
+        findViewById<TextView>(R.id.text_run_speed_test).setOnClickListener { runSpeedTest() }
+        findViewById<android.widget.Switch>(R.id.switch_guest_wifi).setOnCheckedChangeListener { _, _ ->
+            Toast.makeText(
+                this,
+                "Coming soon — router ka is feature ka API abhi capture nahi hua",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
 
         swipeRefresh.setOnRefreshListener { loadDashboardData() }
 
@@ -190,12 +195,11 @@ class DashboardActivity : AppCompatActivity() {
                 val onlineDevices = devices.filter { it.isOnline }
                 tvOnlineBadge.text = "${onlineDevices.size} online"
 
-                tvRouterStatus.text = "Online"
-                tvWifiStatus.text = if (devices.isNotEmpty()) "Active" else "Unknown"
-                tvUptime.text = "Not available yet"
+                tvModemOnlinePill.text = "● ONLINE"
+                tvModemOnlinePill.setTextColor(getColor(R.color.green_online))
+                tvWanType.text = "🌐 Connected"
                 tvDownloadSpeed.text = "Tap to test"
                 tvUploadSpeed.text = "Not available yet"
-                tvInternetStatus.text = "Connected"
             } catch (e: Exception) {
                 Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
                     .setAction("Login Again") {
@@ -204,8 +208,9 @@ class DashboardActivity : AppCompatActivity() {
                         finish()
                     }
                     .show()
-                tvRouterStatus.text = "Offline"
-                tvInternetStatus.text = "Not available"
+                tvModemOnlinePill.text = "● OFFLINE"
+                tvModemOnlinePill.setTextColor(getColor(R.color.danger))
+                tvWanType.text = "🌐 Not available"
             } finally {
                 swipeRefresh.isRefreshing = false
             }

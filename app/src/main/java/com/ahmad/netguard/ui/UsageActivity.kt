@@ -32,6 +32,8 @@ class UsageActivity : AppCompatActivity() {
         binding = ActivityUsageBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.btnBackUsage.setOnClickListener { finish() }
+
         mac = intent.getStringExtra(EXTRA_MAC) ?: ""
         val name = intent.getStringExtra(EXTRA_NAME) ?: mac
         binding.textUsageTitle.text = "$name — Usage"
