@@ -145,23 +145,45 @@ class DashboardActivity : AppCompatActivity() {
 
     private fun runSpeedTest() {
         tvDownloadSpeed.text = "Testing…"
+        tvUploadSpeed.text = "Waiting…"
         lifecycleScope.launch {
-            val mbps = withContext(Dispatchers.IO) {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(25, TimeUnit.SECONDS)
+                .readTimeout(25, TimeUnit.SECONDS)
+                .build()
+
+            // Fast.com (Netflix) speed test — same public token fast.com's own
+            // webpage uses, verified via real packet capture.
+            val targetUrl = withContext(Dispatchers.IO) {
                 try {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(10, TimeUnit.SECONDS)
-                        .readTimeout(20, TimeUnit.SECONDS)
-                        .build()
                     val request = Request.Builder()
-                        .url("https://speed.cloudflare.com/__down?bytes=10000000")
+                        .url("https://api.fast.com/netflix/speedtest/v2?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm&urlCount=1")
                         .build()
+                    val body = client.newCall(request).execute().use { it.body?.string() }
+                    body?.let { Regex("\"url\":\"([^\"]+)\"").find(it)?.groupValues?.get(1) }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            }
+
+            if (targetUrl == null) {
+                tvDownloadSpeed.text = "Test failed"
+                tvUploadSpeed.text = "Test failed"
+                return@launch
+            }
+
+            val downloadMbps = withContext(Dispatchers.IO) {
+                try {
+                    val rangeUrl = targetUrl.replace("/speedtest?", "/speedtest/range/0-26214400?")
+                    val request = Request.Builder().url(rangeUrl).post(ByteArray(0).toRequestBody(null)).build()
 
                     val startTime = System.currentTimeMillis()
                     var bytesRead = 0L
                     client.newCall(request).execute().use { response ->
-                        val body = response.body ?: return@withContext null
-                        val source = body.source()
-                        val buffer = ByteArray(8192)
+                        val source = response.body?.source() ?: return@withContext null
+                        val buffer = ByteArray(65536)
                         while (true) {
                             val read = source.read(buffer)
                             if (read == -1) break
@@ -169,42 +191,34 @@ class DashboardActivity : AppCompatActivity() {
                         }
                     }
                     val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
-                    if (elapsedSeconds <= 0) return@withContext null
-                    (bytesRead * 8) / (elapsedSeconds * 1_000_000)
+                    if (elapsedSeconds <= 0 || bytesRead <= 0) null else (bytesRead * 8) / (elapsedSeconds * 1_000_000)
                 } catch (e: Exception) {
                     e.printStackTrace()
                     null
                 }
             }
-
-            tvDownloadSpeed.text = if (mbps != null) {
-                "%.1f Mbps".format(mbps)
-            } else {
-                "Test failed"
-            }
+            tvDownloadSpeed.text = if (downloadMbps != null) "%.1f Mbps".format(downloadMbps) else "Test failed"
 
             tvUploadSpeed.text = "Testing…"
             val uploadMbps = withContext(Dispatchers.IO) {
                 try {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(10, TimeUnit.SECONDS)
-                        .writeTimeout(20, TimeUnit.SECONDS)
-                        .readTimeout(20, TimeUnit.SECONDS)
-                        .build()
-                    val payload = ByteArray(5_000_000)
-                    val body = payload.toRequestBody("application/octet-stream".toMediaType())
-                    val request = Request.Builder()
-                        .url("https://speed.cloudflare.com/__up")
-                        .post(body)
-                        .build()
-
+                    val rangeUrl = targetUrl.replace("/speedtest?", "/speedtest/range/0-2048?")
+                    val chunk = ByteArray(2048)
+                    val durationMillis = 4000L
                     val startTime = System.currentTimeMillis()
-                    client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) return@withContext null
+                    var totalBytesSent = 0L
+
+                    while (System.currentTimeMillis() - startTime < durationMillis) {
+                        val request = Request.Builder()
+                            .url(rangeUrl)
+                            .post(chunk.toRequestBody("application/octet-stream".toMediaType()))
+                            .build()
+                        client.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) totalBytesSent += chunk.size
+                        }
                     }
                     val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
-                    if (elapsedSeconds <= 0) return@withContext null
-                    (payload.size * 8) / (elapsedSeconds * 1_000_000)
+                    if (elapsedSeconds <= 0 || totalBytesSent <= 0) null else (totalBytesSent * 8) / (elapsedSeconds * 1_000_000)
                 } catch (e: Exception) {
                     e.printStackTrace()
                     null
