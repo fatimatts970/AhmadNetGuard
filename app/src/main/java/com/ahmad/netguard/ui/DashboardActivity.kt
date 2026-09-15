@@ -18,8 +18,10 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 class DashboardActivity : AppCompatActivity() {
@@ -32,6 +34,8 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var tvUploadSpeed: TextView
     private lateinit var tvModemOnlinePill: TextView
     private lateinit var tvWanType: TextView
+    private lateinit var tvCpuPercent: TextView
+    private lateinit var tvWifiName: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +47,8 @@ class DashboardActivity : AppCompatActivity() {
         tvUploadSpeed = findViewById(R.id.text_upload_speed)
         tvModemOnlinePill = findViewById(R.id.text_modem_online_pill)
         tvWanType = findViewById(R.id.text_wan_type)
+        tvCpuPercent = findViewById(R.id.text_cpu_percent)
+        tvWifiName = findViewById(R.id.text_wifi_name)
 
         findViewById<TextView>(R.id.text_run_speed_test).setOnClickListener { runSpeedTest() }
         findViewById<android.widget.Switch>(R.id.switch_guest_wifi).setOnCheckedChangeListener { _, _ ->
@@ -176,6 +182,40 @@ class DashboardActivity : AppCompatActivity() {
             } else {
                 "Test failed"
             }
+
+            tvUploadSpeed.text = "Testing…"
+            val uploadMbps = withContext(Dispatchers.IO) {
+                try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(10, TimeUnit.SECONDS)
+                        .writeTimeout(20, TimeUnit.SECONDS)
+                        .readTimeout(20, TimeUnit.SECONDS)
+                        .build()
+                    val payload = ByteArray(5_000_000)
+                    val body = payload.toRequestBody("application/octet-stream".toMediaType())
+                    val request = Request.Builder()
+                        .url("https://speed.cloudflare.com/__up")
+                        .post(body)
+                        .build()
+
+                    val startTime = System.currentTimeMillis()
+                    client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@withContext null
+                    }
+                    val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
+                    if (elapsedSeconds <= 0) return@withContext null
+                    (payload.size * 8) / (elapsedSeconds * 1_000_000)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            }
+
+            tvUploadSpeed.text = if (uploadMbps != null) {
+                "%.1f Mbps".format(uploadMbps)
+            } else {
+                "Test failed"
+            }
         }
     }
 
@@ -199,8 +239,12 @@ class DashboardActivity : AppCompatActivity() {
                 tvModemOnlinePill.text = "● ONLINE"
                 tvModemOnlinePill.setTextColor(getColor(R.color.green_online))
                 tvWanType.text = "🌐 Connected"
-                tvDownloadSpeed.text = "Tap to test"
-                tvUploadSpeed.text = "Not available yet"
+
+                val cpu = routerAdapter.getCpuUsagePercent()
+                tvCpuPercent.text = if (cpu != null) "$cpu%" else "—"
+
+                val ssid = routerAdapter.getWifiSsidName()
+                if (!ssid.isNullOrBlank()) tvWifiName.text = ssid
             } catch (e: Exception) {
                 Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
                     .setAction("Login Again") {

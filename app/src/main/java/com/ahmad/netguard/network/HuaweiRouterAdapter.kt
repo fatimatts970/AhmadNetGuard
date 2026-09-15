@@ -207,6 +207,40 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
+    override suspend fun getCpuUsagePercent(): Int? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$gateway/html/ssmp/deviceinfo/deviceinfo.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val html = client.newCall(request).execute().body?.string() ?: return@withContext null
+                Regex("cpuUsed\\s*=\\s*'(\\d+)%'").find(html)?.groupValues?.get(1)?.toIntOrNull()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+
+    override suspend fun getWifiSsidName(): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$gateway/html/amp/wlaninfo/wlaninfo.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val html = client.newCall(request).execute().body?.string() ?: return@withContext null
+                // First stWlan(...) entry with enable="1" on WLANConfiguration.1 is the main SSID
+                val pattern = Regex("new stWlan\\(\"[^\"]*WLANConfiguration\\\\x2e1\",\"1\",\"[^\"]*\",\"([^\"]+)\"")
+                pattern.find(html)?.groupValues?.get(1)?.let { unescapeHex(it) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+
     override suspend fun getBlockedMacs(): Set<String> =
         withContext(Dispatchers.IO) {
             try {

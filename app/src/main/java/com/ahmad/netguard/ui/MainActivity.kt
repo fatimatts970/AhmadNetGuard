@@ -12,6 +12,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import com.google.android.material.snackbar.Snackbar
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentSort = SortOption.NAME
     private var searchQuery = ""
+    private var showOnlyBlocked = false
 
     private enum class SortOption { NAME, IP, STATUS }
 
@@ -65,6 +67,13 @@ class MainActivity : AppCompatActivity() {
         tvDeviceCountHeader = findViewById(R.id.tvDeviceCountHeader)
         tvConnectedCount = findViewById(R.id.tvConnectedCount)
         tvBlockedCount = findViewById(R.id.tvBlockedCount)
+
+        findViewById<View>(R.id.cardBlockedFilter).setOnClickListener {
+            showOnlyBlocked = !showOnlyBlocked
+            val msg = if (showOnlyBlocked) "Showing blocked devices only" else "Showing all devices"
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            applyFilterAndSort()
+        }
         etSearch = findViewById(R.id.etSearchDevices)
         btnSort = findViewById(R.id.btnSort)
         btnBackup = findViewById(R.id.btnBackup)
@@ -191,6 +200,10 @@ class MainActivity : AppCompatActivity() {
                     it.ipAddress.contains(searchQuery, ignoreCase = true) ||
                     it.macAddress.contains(searchQuery, ignoreCase = true)
             }
+        }
+
+        if (showOnlyBlocked) {
+            filtered = filtered.filter { it.isBlocked }
         }
 
         filtered = when (currentSort) {
