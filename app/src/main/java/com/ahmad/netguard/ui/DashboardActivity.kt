@@ -74,7 +74,7 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_mac_filter).setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, MacFilterActivity::class.java))
         }
 
         findViewById<android.widget.ImageButton>(R.id.btn_logout).setOnClickListener {

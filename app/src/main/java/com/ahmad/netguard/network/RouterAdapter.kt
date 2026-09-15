@@ -8,6 +8,7 @@ interface RouterAdapter {
     suspend fun blockDevice(mac: String): Boolean
     suspend fun unblockDevice(mac: String): Boolean
     suspend fun getBlockedMacs(): Set<String>
+    suspend fun isFilterEnabled(): Boolean
     suspend fun getCpuUsagePercent(): Int?
     suspend fun getWifiSsidName(): String?
     suspend fun restartRouter(): Boolean

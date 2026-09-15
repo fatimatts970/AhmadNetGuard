@@ -222,11 +222,24 @@ class MainActivity : AppCompatActivity() {
         // of the chosen sort, so blocked devices are easy to find together.
         filtered = filtered.sortedByDescending { it.isOnline }
 
+        val online = filtered.filter { it.isOnline }
+        val offline = filtered.filter { !it.isOnline }
+
+        val withHeaders = mutableListOf<Device>()
+        if (online.isNotEmpty()) {
+            withHeaders.add(headerDevice("RECENTLY CONNECTED"))
+            withHeaders.addAll(online)
+        }
+        if (offline.isNotEmpty()) {
+            withHeaders.add(headerDevice("OFFLINE"))
+            withHeaders.addAll(offline)
+        }
+
         deviceList.clear()
-        deviceList.addAll(filtered)
+        deviceList.addAll(withHeaders)
         deviceListAdapter.notifyDataSetChanged()
 
-        if (deviceList.isEmpty()) {
+        if (filtered.isEmpty()) {
             emptyStateLayout.visibility = View.VISIBLE
             rvDevices.visibility = View.GONE
         } else {
@@ -235,7 +248,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         tvDeviceCountHeader.text = "Connected Devices: ${allDevices.count { it.isOnline }}" +
-            if (searchQuery.isNotBlank()) " (${deviceList.size} shown)" else ""
+            if (searchQuery.isNotBlank()) " (${filtered.size} shown)" else ""
         tvConnectedCount.text = allDevices.count { it.isOnline }.toString()
         tvBlockedCount.text = allDevices.count { it.isBlocked }.toString()
     }
