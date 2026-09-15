@@ -44,6 +44,7 @@ class LoginActivity : AppCompatActivity() {
         }
 
         if (savedUsername.isNotBlank()) binding.inputUsername.setText(savedUsername)
+        binding.checkboxRememberMe.isChecked = credStore.isRememberMeEnabled()
 
         // Eye icon — password show/hide toggle
         binding.btnTogglePassword.setOnClickListener {
@@ -119,7 +120,17 @@ class LoginActivity : AppCompatActivity() {
 
             if (success) {
                 credStore.saveCredentials(gateway, username, pass)
-                startActivity(Intent(this@LoginActivity, DashboardActivity::class.java))
+                credStore.setRememberMe(binding.checkboxRememberMe.isChecked)
+
+                // Dashboard khulne se pehle hi real WiFi name aur router model
+                // fetch kar lete hain, taake Dashboard khulte hi "Loading..." na dikhe
+                val ssid = adapter.getWifiSsidName()
+                val model = adapter.getRouterModel()
+
+                val intent = Intent(this@LoginActivity, DashboardActivity::class.java)
+                if (!ssid.isNullOrBlank()) intent.putExtra(DashboardActivity.EXTRA_WIFI_NAME, ssid)
+                if (!model.isNullOrBlank()) intent.putExtra(DashboardActivity.EXTRA_ROUTER_MODEL, model)
+                startActivity(intent)
                 finish()
             } else {
                 showError("Could not connect: check IP, username and password")

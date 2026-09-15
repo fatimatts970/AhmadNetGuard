@@ -26,6 +26,11 @@ import java.util.concurrent.TimeUnit
 
 class DashboardActivity : AppCompatActivity() {
 
+    companion object {
+        const val EXTRA_WIFI_NAME = "extra_wifi_name"
+        const val EXTRA_ROUTER_MODEL = "extra_router_model"
+    }
+
     private val routerAdapter = RouterAdapterFactory.getAdapter()
 
     private lateinit var swipeRefresh: SwipeRefreshLayout
@@ -37,6 +42,7 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var tvCpuPercent: TextView
     private lateinit var tvWifiName: TextView
     private lateinit var tvModemName: TextView
+    private lateinit var tvPingMs: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,11 +57,14 @@ class DashboardActivity : AppCompatActivity() {
         tvCpuPercent = findViewById(R.id.text_cpu_percent)
         tvWifiName = findViewById(R.id.text_wifi_name)
         tvModemName = findViewById(R.id.text_modem_name)
+        tvPingMs = findViewById(R.id.text_ping_ms)
 
         // Never show the placeholder sample names even for a frame — replace them
         // with a loading state immediately, real values arrive from loadDashboardData().
-        tvWifiName.text = "Loading…"
-        tvModemName.text = "Loading…"
+        val prefetchedSsid = intent.getStringExtra(EXTRA_WIFI_NAME)
+        val prefetchedModel = intent.getStringExtra(EXTRA_ROUTER_MODEL)
+        tvWifiName.text = prefetchedSsid ?: "Loading…"
+        tvModemName.text = if (!prefetchedModel.isNullOrBlank()) "Huawei $prefetchedModel" else "Loading…"
 
         findViewById<TextView>(R.id.text_run_speed_test).setOnClickListener { runSpeedTest() }
         findViewById<android.widget.Switch>(R.id.switch_guest_wifi).setOnCheckedChangeListener { _, _ ->
@@ -153,6 +162,7 @@ class DashboardActivity : AppCompatActivity() {
     private fun runSpeedTest() {
         tvDownloadSpeed.text = "Testing…"
         tvUploadSpeed.text = "Waiting…"
+        tvPingMs.text = "…"
         lifecycleScope.launch {
             val client = OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
@@ -160,33 +170,35 @@ class DashboardActivity : AppCompatActivity() {
                 .readTimeout(25, TimeUnit.SECONDS)
                 .build()
 
-            // Fast.com (Netflix) speed test — same public token fast.com's own
-            // webpage uses, verified via real packet capture.
-            val targetUrl = withContext(Dispatchers.IO) {
+            // Ping — real round trip time to Cloudflare's speed test endpoint,
+            // averaged over a few requests (first one discarded as connection warm-up).
+            val pingMs = withContext(Dispatchers.IO) {
                 try {
-                    val request = Request.Builder()
-                        .url("https://api.fast.com/netflix/speedtest/v2?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm&urlCount=1")
-                        .build()
-                    val body = client.newCall(request).execute().use { it.body?.string() }
-                    body?.let { Regex("\"url\":\"([^\"]+)\"").find(it)?.groupValues?.get(1) }
+                    val timings = mutableListOf<Long>()
+                    repeat(4) {
+                        val start = System.currentTimeMillis()
+                        val request = Request.Builder().url("https://speed.cloudflare.com/__down?bytes=0").build()
+                        client.newCall(request).execute().use { response ->
+                            response.body?.bytes()
+                        }
+                        timings.add(System.currentTimeMillis() - start)
+                    }
+                    val usable = timings.drop(1)
+                    if (usable.isEmpty()) null else usable.average()
                 } catch (e: Exception) {
                     e.printStackTrace()
                     null
                 }
             }
-
-            if (targetUrl == null) {
-                tvDownloadSpeed.text = "Test failed"
-                tvUploadSpeed.text = "Test failed"
-                return@launch
-            }
+            tvPingMs.text = if (pingMs != null) "${pingMs.toInt()} ms" else "—"
 
             val downloadMbps = withContext(Dispatchers.IO) {
                 try {
                     // 100MB cap is just a ceiling — we stop reading after ~5s regardless,
-                    // so this never depends on waiting for the full body to arrive.
-                    val rangeUrl = targetUrl.replace("/speedtest?", "/speedtest/range/0-104857600?")
-                    val request = Request.Builder().url(rangeUrl).post(ByteArray(0).toRequestBody(null)).build()
+                    // so this never depends on waiting for a slow connection to finish.
+                    val request = Request.Builder()
+                        .url("https://speed.cloudflare.com/__down?bytes=104857600")
+                        .build()
 
                     val durationMillis = 5000L
                     var bytesRead = 0L
@@ -212,19 +224,18 @@ class DashboardActivity : AppCompatActivity() {
             tvUploadSpeed.text = "Testing…"
             val uploadMbps = withContext(Dispatchers.IO) {
                 try {
-                    val rangeUrl = targetUrl.replace("/speedtest?", "/speedtest/range/0-2048?")
-                    val chunk = ByteArray(2048)
+                    val payload = ByteArray(2_000_000)
                     val durationMillis = 4000L
                     val startTime = System.currentTimeMillis()
                     var totalBytesSent = 0L
 
                     while (System.currentTimeMillis() - startTime < durationMillis) {
                         val request = Request.Builder()
-                            .url(rangeUrl)
-                            .post(chunk.toRequestBody("application/octet-stream".toMediaType()))
+                            .url("https://speed.cloudflare.com/__up")
+                            .post(payload.toRequestBody("application/octet-stream".toMediaType()))
                             .build()
                         client.newCall(request).execute().use { response ->
-                            if (response.isSuccessful) totalBytesSent += chunk.size
+                            if (response.isSuccessful) totalBytesSent += payload.size
                         }
                     }
                     val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0

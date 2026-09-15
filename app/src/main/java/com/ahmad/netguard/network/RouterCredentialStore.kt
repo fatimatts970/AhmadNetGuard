@@ -17,6 +17,12 @@ class RouterCredentialStore(context: Context) {
     fun getGateway(): String = prefs.getString("gateway", "192.168.100.1") ?: "192.168.100.1"
     fun getUsername(): String = prefs.getString("username", "admin") ?: "admin"
     fun getPassword(): String = prefs.getString("password", "") ?: ""
+
+    fun setRememberMe(remember: Boolean) {
+        prefs.edit().putBoolean("remember_me", remember).apply()
+    }
+
+    fun isRememberMeEnabled(): Boolean = prefs.getBoolean("remember_me", false)
     
     fun clearCredentials() {
         prefs.edit().clear().apply()
