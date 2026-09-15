@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.ahmad.netguard.R
 import com.ahmad.netguard.databinding.ItemDeviceBinding
 import com.ahmad.netguard.model.Device
 
@@ -73,7 +74,15 @@ class DeviceListAdapter(
             binding.tvDeviceIp.text = "${device.ipAddress} • ${device.macAddress}"
 
             binding.btnBlock.isEnabled = !processingMacs.contains(device.macAddress)
-            binding.btnBlock.text = if (device.isBlocked) "Unblock" else "Block"
+            if (device.isBlocked) {
+                binding.btnBlock.text = "Unblock"
+                binding.btnBlock.setBackgroundResource(R.drawable.bg_pill_outline_blue)
+                binding.btnBlock.setTextColor(binding.root.context.getColor(R.color.blue_unblock))
+            } else {
+                binding.btnBlock.text = "Block"
+                binding.btnBlock.setBackgroundResource(R.drawable.bg_pill_outline_red)
+                binding.btnBlock.setTextColor(binding.root.context.getColor(R.color.danger))
+            }
 
             binding.root.setOnLongClickListener {
                 onRenameClick(device)

@@ -36,6 +36,7 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var tvWanType: TextView
     private lateinit var tvCpuPercent: TextView
     private lateinit var tvWifiName: TextView
+    private lateinit var tvModemName: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +50,12 @@ class DashboardActivity : AppCompatActivity() {
         tvWanType = findViewById(R.id.text_wan_type)
         tvCpuPercent = findViewById(R.id.text_cpu_percent)
         tvWifiName = findViewById(R.id.text_wifi_name)
+        tvModemName = findViewById(R.id.text_modem_name)
+
+        // Never show the placeholder sample names even for a frame — replace them
+        // with a loading state immediately, real values arrive from loadDashboardData().
+        tvWifiName.text = "Loading…"
+        tvModemName.text = "Loading…"
 
         findViewById<TextView>(R.id.text_run_speed_test).setOnClickListener { runSpeedTest() }
         findViewById<android.widget.Switch>(R.id.switch_guest_wifi).setOnCheckedChangeListener { _, _ ->
@@ -176,15 +183,18 @@ class DashboardActivity : AppCompatActivity() {
 
             val downloadMbps = withContext(Dispatchers.IO) {
                 try {
-                    val rangeUrl = targetUrl.replace("/speedtest?", "/speedtest/range/0-26214400?")
+                    // 100MB cap is just a ceiling — we stop reading after ~5s regardless,
+                    // so this never depends on waiting for the full body to arrive.
+                    val rangeUrl = targetUrl.replace("/speedtest?", "/speedtest/range/0-104857600?")
                     val request = Request.Builder().url(rangeUrl).post(ByteArray(0).toRequestBody(null)).build()
 
-                    val startTime = System.currentTimeMillis()
+                    val durationMillis = 5000L
                     var bytesRead = 0L
+                    val startTime = System.currentTimeMillis()
                     client.newCall(request).execute().use { response ->
                         val source = response.body?.source() ?: return@withContext null
                         val buffer = ByteArray(65536)
-                        while (true) {
+                        while (System.currentTimeMillis() - startTime < durationMillis) {
                             val read = source.read(buffer)
                             if (read == -1) break
                             bytesRead += read
@@ -259,7 +269,12 @@ class DashboardActivity : AppCompatActivity() {
 
                 val ssid = routerAdapter.getWifiSsidName()
                 if (!ssid.isNullOrBlank()) tvWifiName.text = ssid
+
+                val model = routerAdapter.getRouterModel()
+                tvModemName.text = if (!model.isNullOrBlank()) "Huawei $model" else "Huawei Router"
             } catch (e: Exception) {
+                if (tvWifiName.text == "Loading…") tvWifiName.text = "Unavailable"
+                if (tvModemName.text == "Loading…") tvModemName.text = "Huawei Router"
                 Snackbar.make(swipeRefresh, "Lost connection to router", Snackbar.LENGTH_LONG)
                     .setAction("Login Again") {
                         RouterCredentialStore(this@DashboardActivity).clearCredentials()

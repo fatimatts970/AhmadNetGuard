@@ -53,9 +53,10 @@ class MainActivity : AppCompatActivity() {
 
     private var currentSort = SortOption.NAME
     private var searchQuery = ""
-    private var showOnlyBlocked = false
+    private var filterMode = FilterMode.ALL
 
     private enum class SortOption { NAME, IP, STATUS }
+    private enum class FilterMode { ALL, CONNECTED, BLOCKED }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,9 +69,16 @@ class MainActivity : AppCompatActivity() {
         tvConnectedCount = findViewById(R.id.tvConnectedCount)
         tvBlockedCount = findViewById(R.id.tvBlockedCount)
 
+        findViewById<View>(R.id.cardConnectedFilter).setOnClickListener {
+            filterMode = if (filterMode == FilterMode.CONNECTED) FilterMode.ALL else FilterMode.CONNECTED
+            val msg = if (filterMode == FilterMode.CONNECTED) "Showing connected devices only" else "Showing all devices"
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            applyFilterAndSort()
+        }
+
         findViewById<View>(R.id.cardBlockedFilter).setOnClickListener {
-            showOnlyBlocked = !showOnlyBlocked
-            val msg = if (showOnlyBlocked) "Showing blocked devices only" else "Showing all devices"
+            filterMode = if (filterMode == FilterMode.BLOCKED) FilterMode.ALL else FilterMode.BLOCKED
+            val msg = if (filterMode == FilterMode.BLOCKED) "Showing blocked devices only" else "Showing all devices"
             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             applyFilterAndSort()
         }
@@ -202,8 +210,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (showOnlyBlocked) {
-            filtered = filtered.filter { it.isBlocked }
+        filtered = when (filterMode) {
+            FilterMode.CONNECTED -> filtered.filter { it.isOnline }
+            FilterMode.BLOCKED -> filtered.filter { it.isBlocked }
+            FilterMode.ALL -> filtered
         }
 
         filtered = when (currentSort) {

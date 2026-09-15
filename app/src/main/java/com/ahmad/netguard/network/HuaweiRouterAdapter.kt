@@ -223,6 +223,24 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
+    override suspend fun getRouterModel(): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$gateway/html/ssmp/deviceinfo/deviceinfo.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val html = client.newCall(request).execute().body?.string() ?: return@withContext null
+                // new stDeviceInfo(domain, SerialNumber, HardwareVersion, SoftwareVersion, ModelName, ...)
+                Regex("new stDeviceInfo\\(\"[^\"]*\",\"[^\"]*\",\"[^\"]*\",\"[^\"]*\",\"([^\"]+)\"")
+                    .find(html)?.groupValues?.get(1)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+
     override suspend fun getWifiSsidName(): String? =
         withContext(Dispatchers.IO) {
             try {

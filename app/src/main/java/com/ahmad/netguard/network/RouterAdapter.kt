@@ -10,6 +10,7 @@ interface RouterAdapter {
     suspend fun getBlockedMacs(): Set<String>
     suspend fun isFilterEnabled(): Boolean
     suspend fun getCpuUsagePercent(): Int?
+    suspend fun getRouterModel(): String?
     suspend fun getWifiSsidName(): String?
     suspend fun restartRouter(): Boolean
     suspend fun updateWifiSettings(ssid: String, key: String): Boolean
