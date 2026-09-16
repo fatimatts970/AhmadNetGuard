@@ -297,10 +297,18 @@ class HuaweiRouterAdapter : RouterAdapter {
     override suspend fun restartRouter(): Boolean =
         withContext(Dispatchers.IO) {
             try {
+                val pageRequest = Request.Builder()
+                    .url("http://$gateway/html/bbsp/wlanmacfilter/wlanmacfilter.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val pageHtml = client.newCall(pageRequest).execute().body?.string() ?: return@withContext false
+                val token = extractToken(pageHtml) ?: return@withContext false
+
                 val request = Request.Builder()
                     .url("http://$gateway/set.cgi?x=InternetGatewayDevice.X_HW_DEBUG.SSP.DBSave&y=InternetGatewayDevice.X_HW_DEBUG.SMP.DM.ResetBoard&RequestFile=")
                     .addHeader("Cookie", sessionCookie)
-                    .post(FormBody.Builder().build())
+                    .post(FormBody.Builder().add("x.X_HW_Token", token).build())
                     .build()
 
                 val response = client.newCall(request).execute()
@@ -314,10 +322,19 @@ class HuaweiRouterAdapter : RouterAdapter {
     override suspend fun updateWifiSettings(ssid: String, key: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
+                val pageRequest = Request.Builder()
+                    .url("http://$gateway/html/amp/wlanbasic/WlanBasic.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val pageHtml = client.newCall(pageRequest).execute().body?.string() ?: return@withContext false
+                val token = extractToken(pageHtml) ?: return@withContext false
+
                 val formBody = FormBody.Builder()
                     .add("w.SSID", ssid)
                     .add("w.Key", key)
                     .add("k.PreSharedKey", key)
+                    .add("x.X_HW_Token", token)
                     .add("RequestFile", "html/amp/wlanbasic/WlanBasic.asp")
                     .build()
 

@@ -202,9 +202,13 @@ class DashboardActivity : AppCompatActivity() {
 
                     val durationMillis = 5000L
                     var bytesRead = 0L
-                    val startTime = System.currentTimeMillis()
+                    var startTime = 0L
                     client.newCall(request).execute().use { response ->
                         val source = response.body?.source() ?: return@withContext null
+                        // Timer shuru yahan se hota hai — connection/headers aane ka
+                        // wait humari 5-second measurement window mein nahi ginta,
+                        // warna slow connect hi poora waqt kha jata tha.
+                        startTime = System.currentTimeMillis()
                         val buffer = ByteArray(65536)
                         while (System.currentTimeMillis() - startTime < durationMillis) {
                             val read = source.read(buffer)

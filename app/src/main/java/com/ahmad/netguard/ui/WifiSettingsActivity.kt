@@ -20,6 +20,13 @@ class WifiSettingsActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
 
+        binding.btnToggleWifiPassword.setOnClickListener {
+            togglePasswordVisibility(binding.inputWifiPassword, binding.btnToggleWifiPassword)
+        }
+        binding.btnToggleGuestPassword.setOnClickListener {
+            togglePasswordVisibility(binding.inputGuestPassword, binding.btnToggleGuestPassword)
+        }
+
         binding.btnSaveWifiSettings.setOnClickListener {
             val ssid = binding.inputSsid.text.toString().trim()
             val password = binding.inputWifiPassword.text.toString().trim()
@@ -61,5 +68,17 @@ class WifiSettingsActivity : AppCompatActivity() {
                 Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun togglePasswordVisibility(input: android.widget.EditText, icon: android.widget.ImageView) {
+        val isHidden = input.inputType and android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD != 0
+        if (isHidden) {
+            input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            icon.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+        } else {
+            input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            icon.setImageResource(android.R.drawable.ic_menu_view)
+        }
+        input.setSelection(input.text.length)
     }
 }
