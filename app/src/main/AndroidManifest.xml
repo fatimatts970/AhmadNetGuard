@@ -48,6 +48,9 @@
 
         <activity android:name=".ui.MacFilterActivity" android:exported="false" />
 
+        <activity android:name=".ui.NetStatsActivity" android:exported="false" />
+        <activity android:name=".ui.WanConfigActivity" android:exported="false" />
+
         <service
             android:name=".history.ConnectionMonitorService"
             android:exported="false"

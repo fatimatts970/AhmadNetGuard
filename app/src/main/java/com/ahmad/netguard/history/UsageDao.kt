@@ -24,4 +24,18 @@ interface UsageDao {
 
     @Query("DELETE FROM usage_records WHERE mac = :mac")
     suspend fun clearForDevice(mac: String)
+
+    @Query("SELECT COALESCE(SUM(estimatedBytes), 0) FROM usage_records WHERE dayEpoch = :dayEpoch")
+    suspend fun getTotalBytesForDayAllDevices(dayEpoch: Long): Long
+
+    @Query("SELECT COALESCE(SUM(estimatedBytes), 0) FROM usage_records WHERE dayEpoch BETWEEN :startDay AND :endDay")
+    suspend fun getTotalBytesInRangeAllDevices(startDay: Long, endDay: Long): Long
+
+    @Query("SELECT COALESCE(SUM(estimatedBytes), 0) FROM usage_records")
+    suspend fun getTotalBytesAllDevices(): Long
+
+    @Query("SELECT mac, COALESCE(SUM(estimatedBytes), 0) as total FROM usage_records GROUP BY mac ORDER BY total DESC")
+    suspend fun getPerDeviceTotals(): List<MacTotal>
 }
+
+data class MacTotal(val mac: String, val total: Long)

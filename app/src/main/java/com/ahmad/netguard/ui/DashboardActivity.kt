@@ -86,7 +86,15 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_net_stats).setOnClickListener {
+            startActivity(Intent(this, NetStatsActivity::class.java))
+        }
+
+        findViewById<androidx.cardview.widget.CardView>(R.id.tile_activity_logs).setOnClickListener {
             startActivity(Intent(this, LogsActivity::class.java))
+        }
+
+        findViewById<androidx.cardview.widget.CardView>(R.id.tile_wan_config).setOnClickListener {
+            startActivity(Intent(this, WanConfigActivity::class.java))
         }
 
         findViewById<androidx.cardview.widget.CardView>(R.id.tile_mac_filter).setOnClickListener {
@@ -194,26 +202,41 @@ class DashboardActivity : AppCompatActivity() {
 
             val downloadMbps = withContext(Dispatchers.IO) {
                 try {
-                    // 100MB cap is just a ceiling — we stop reading after ~5s regardless,
-                    // so this never depends on waiting for a slow connection to finish.
-                    val request = Request.Builder()
-                        .url("https://speed.cloudflare.com/__down?bytes=104857600")
-                        .build()
+                    // Warm-up request first — opens/primes the connection so the real
+                    // measurement below isn't eaten by DNS/TLS handshake time.
+                    try {
+                        client.newCall(Request.Builder().url("https://speed.cloudflare.com/__down?bytes=10000").build())
+                            .execute().use { it.body?.bytes() }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
 
+                    // Multiple smaller (10MB) chunks instead of one giant request —
+                    // if one chunk's connection has trouble, the others still count,
+                    // so a single flaky request can't zero out the whole result.
                     val durationMillis = 5000L
                     var bytesRead = 0L
-                    var startTime = 0L
-                    client.newCall(request).execute().use { response ->
-                        val source = response.body?.source() ?: return@withContext null
-                        // Timer shuru yahan se hota hai — connection/headers aane ka
-                        // wait humari 5-second measurement window mein nahi ginta,
-                        // warna slow connect hi poora waqt kha jata tha.
-                        startTime = System.currentTimeMillis()
-                        val buffer = ByteArray(65536)
-                        while (System.currentTimeMillis() - startTime < durationMillis) {
-                            val read = source.read(buffer)
-                            if (read == -1) break
-                            bytesRead += read
+                    val startTime = System.currentTimeMillis()
+
+                    while (System.currentTimeMillis() - startTime < durationMillis) {
+                        try {
+                            val request = Request.Builder()
+                                .url("https://speed.cloudflare.com/__down?bytes=10000000")
+                                .build()
+                            client.newCall(request).execute().use { response ->
+                                val source = response.body?.source()
+                                if (source != null) {
+                                    val buffer = ByteArray(65536)
+                                    while (System.currentTimeMillis() - startTime < durationMillis) {
+                                        val read = source.read(buffer)
+                                        if (read == -1) break
+                                        bytesRead += read
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            // Ek chunk fail ho jaye to bhi baaki chunks se result banta rahega
                         }
                     }
                     val elapsedSeconds = (System.currentTimeMillis() - startTime) / 1000.0
