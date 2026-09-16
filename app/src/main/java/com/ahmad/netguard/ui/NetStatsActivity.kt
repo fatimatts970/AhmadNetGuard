@@ -18,6 +18,12 @@ class NetStatsActivity : AppCompatActivity() {
 
         findViewById<android.widget.ImageButton>(R.id.btnBackNetStats).setOnClickListener { finish() }
 
+        val swipeRefresh = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.swipeRefreshNetStats)
+        swipeRefresh.setOnRefreshListener {
+            loadStats()
+            swipeRefresh.isRefreshing = false
+        }
+
         loadStats()
     }
 

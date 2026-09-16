@@ -11,6 +11,7 @@ interface RouterAdapter {
     suspend fun isFilterEnabled(): Boolean
     suspend fun getCpuUsagePercent(): Int?
     suspend fun getRouterModel(): String?
+    suspend fun setGuestWifi(ssid: String, key: String, enable: Boolean): Boolean
     suspend fun getWifiSsidName(): String?
     suspend fun restartRouter(): Boolean
     suspend fun updateWifiSettings(ssid: String, key: String): Boolean

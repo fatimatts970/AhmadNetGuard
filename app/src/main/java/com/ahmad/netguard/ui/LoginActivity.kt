@@ -122,6 +122,15 @@ class LoginActivity : AppCompatActivity() {
                 credStore.saveCredentials(gateway, username, pass)
                 credStore.setRememberMe(binding.checkboxRememberMe.isChecked)
 
+                com.ahmad.netguard.history.AppDatabase.getInstance(this@LoginActivity).appLogDao().insert(
+                    com.ahmad.netguard.history.AppLog(
+                        type = "LOGIN",
+                        message = "Logged in as $username",
+                        success = true,
+                        timestampMillis = System.currentTimeMillis()
+                    )
+                )
+
                 // Dashboard khulne se pehle hi real WiFi name aur router model
                 // fetch kar lete hain, taake Dashboard khulte hi "Loading..." na dikhe
                 val ssid = adapter.getWifiSsidName()
@@ -133,6 +142,14 @@ class LoginActivity : AppCompatActivity() {
                 startActivity(intent)
                 finish()
             } else {
+                com.ahmad.netguard.history.AppDatabase.getInstance(this@LoginActivity).appLogDao().insert(
+                    com.ahmad.netguard.history.AppLog(
+                        type = "LOGIN",
+                        message = "Failed login attempt as $username",
+                        success = false,
+                        timestampMillis = System.currentTimeMillis()
+                    )
+                )
                 showError("Could not connect: check IP, username and password")
             }
         }

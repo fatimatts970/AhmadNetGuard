@@ -99,6 +99,14 @@ class ConnectionMonitorService : Service() {
                                 timestampMillis = System.currentTimeMillis()
                             )
                             db.connectionEventDao().insert(event)
+                            db.appLogDao().insert(
+                                com.ahmad.netguard.history.AppLog(
+                                    type = "CONNECTION",
+                                    message = "${device.displayName} ${if (device.isOnline) "connected" else "disconnected"} (${device.macAddress})",
+                                    success = true,
+                                    timestampMillis = System.currentTimeMillis()
+                                )
+                            )
 
                             if (oldDevice == null && device.isOnline && !isFirstPoll) {
                                 notifyNewDevice(device)

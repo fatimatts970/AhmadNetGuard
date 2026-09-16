@@ -138,10 +138,11 @@
                         android:layout_width="match_parent"
                         android:layout_height="52dp"
                         android:layout_marginTop="20dp"
-                        android:backgroundTint="@color/brand_dark"
+                        android:background="@drawable/bg_pill_outline"
+                        android:backgroundTint="@null"
                         android:text="Save Changes"
                         android:textAllCaps="false"
-                        android:textColor="@color/card_white"
+                        android:textColor="@color/brand_dark"
                         app:cornerRadius="14dp" />
 
                     <ProgressBar
@@ -168,10 +169,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginTop="20dp"
-                android:backgroundTint="@color/danger"
+                android:background="@drawable/bg_pill_outline_red"
+                android:backgroundTint="@null"
                 android:text="Reboot Router"
                 android:textAllCaps="false"
-                android:textColor="@color/card_white"
+                android:textColor="@color/danger"
                 app:cornerRadius="14dp" />
 
             <TextView
@@ -280,11 +282,12 @@
                             android:layout_height="50dp"
                             android:layout_weight="1"
                             android:layout_marginEnd="6dp"
-                            android:backgroundTint="@color/brand_dark"
+                            android:background="@drawable/bg_pill_outline"
+                            android:backgroundTint="@null"
                             android:text="Save / Turn On"
                             android:textAllCaps="false"
                             android:textSize="13sp"
-                            android:textColor="@color/card_white"
+                            android:textColor="@color/brand_dark"
                             app:cornerRadius="12dp" />
 
                         <com.google.android.material.button.MaterialButton
@@ -293,11 +296,12 @@
                             android:layout_height="50dp"
                             android:layout_weight="1"
                             android:layout_marginStart="6dp"
-                            android:backgroundTint="@color/danger"
+                            android:background="@drawable/bg_pill_outline_red"
+                            android:backgroundTint="@null"
                             android:text="Turn Off"
                             android:textAllCaps="false"
                             android:textSize="13sp"
-                            android:textColor="@color/card_white"
+                            android:textColor="@color/danger"
                             app:cornerRadius="12dp" />
                     </LinearLayout>
 

@@ -351,4 +351,61 @@ class HuaweiRouterAdapter : RouterAdapter {
                 false
             }
         }
+    override suspend fun setGuestWifi(ssid: String, key: String, enable: Boolean): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val pageRequest = Request.Builder()
+                    .url("http://$gateway/html/amp/wlanbasic/WlanBasic.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val pageHtml = client.newCall(pageRequest).execute().body?.string() ?: return@withContext false
+                val token = extractToken(pageHtml) ?: return@withContext false
+
+                val enableVal = if (enable) "1" else "0"
+                val formBody = FormBody.Builder()
+                    .add("y.Enable", enableVal)
+                    .add("y.SSIDAdvertisementEnabled", "1")
+                    .add("y.SSID", ssid)
+                    .add("y.X_HW_AssociateNum", "32")
+                    .add("y.BeaconType", "WPA")
+                    .add("y.WPAAuthenticationMode", "PSKAuthentication")
+                    .add("y.WPAEncryptionModes", "TKIPEncryption")
+                    .add("k.PreSharedKey", key)
+                    .add("y.X_HW_GroupRekey", "3600")
+                    .add("z.Enable", "0")
+                    .add("z.X_HW_ConfigMethod", "Lable")
+                    .add("z.X_HW_PinGenerator", "AP")
+                    .add("z.DevicePassword", "16751651")
+                    .add("w.SsidInst", "2")
+                    .add("w.SSID", ssid)
+                    .add("w.Enable", enableVal)
+                    .add("w.Standard", "11bgn")
+                    .add("w.BasicAuthenticationMode", "None")
+                    .add("w.BasicEncryptionModes", "TKIPEncryption")
+                    .add("w.WPAAuthenticationMode", "PSKAuthentication")
+                    .add("w.WPAEncryptionModes", "TKIPEncryption")
+                    .add("w.IEEE11iAuthenticationMode", "EAPAuthentication")
+                    .add("w.IEEE11iEncryptionModes", "TKIPEncryption")
+                    .add("w.MixAuthenticationMode", "EAPAuthentication")
+                    .add("w.MixEncryptionModes", "TKIPEncryption")
+                    .add("w.BeaconType", "WPA")
+                    .add("w.WEPEncryptionLevel", "104-bit")
+                    .add("w.WEPKeyIndex", "1")
+                    .add("w.Key", key)
+                    .add("x.X_HW_Token", token)
+                    .build()
+
+                val request = Request.Builder()
+                    .url("http://$gateway/html/amp/wlanbasic/set.cgi?w=InternetGatewayDevice.X_HW_DEBUG.AMP.WifiCoverSetWlanBasic&y=InternetGatewayDevice.LANDevice.1.WLANConfiguration.2&z=InternetGatewayDevice.LANDevice.1.WLANConfiguration.2.WPS&k=InternetGatewayDevice.LANDevice.1.WLANConfiguration.2.PreSharedKey.1&RequestFile=html/amp/wlanbasic/WlanBasic.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .post(formBody)
+                    .build()
+
+                client.newCall(request).execute().isSuccessful
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
 }

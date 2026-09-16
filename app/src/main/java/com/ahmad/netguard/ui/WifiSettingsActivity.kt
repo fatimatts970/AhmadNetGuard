@@ -27,6 +27,35 @@ class WifiSettingsActivity : AppCompatActivity() {
             togglePasswordVisibility(binding.inputGuestPassword, binding.btnToggleGuestPassword)
         }
 
+        binding.btnAddGuestWifi.setOnClickListener {
+            val ssid = binding.inputGuestSsid.text.toString().trim()
+            val pass = binding.inputGuestPassword.text.toString().trim()
+            if (ssid.isEmpty() || pass.length < 8) {
+                Toast.makeText(this, "Enter a guest name and a password (8+ characters)", Toast.LENGTH_SHORT).show()
+            } else {
+                lifecycleScope.launch {
+                    binding.progressGuestWifi.visibility = android.view.View.VISIBLE
+                    val router = RouterAdapterFactory.getAdapter()
+                    val success = router.setGuestWifi(ssid, pass, true)
+                    binding.progressGuestWifi.visibility = android.view.View.GONE
+                    val msg = if (success) "Guest WiFi is on: $ssid" else "Failed! Check router connection."
+                    Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        binding.btnRemoveGuestWifi.setOnClickListener {
+            lifecycleScope.launch {
+                binding.progressGuestWifi.visibility = android.view.View.VISIBLE
+                val router = RouterAdapterFactory.getAdapter()
+                val ssid = binding.inputGuestSsid.text.toString().trim().ifEmpty { "Guest" }
+                val success = router.setGuestWifi(ssid, "00000000", false)
+                binding.progressGuestWifi.visibility = android.view.View.GONE
+                val msg = if (success) "Guest WiFi turned off" else "Failed! Check router connection."
+                Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         binding.btnSaveWifiSettings.setOnClickListener {
             val ssid = binding.inputSsid.text.toString().trim()
             val password = binding.inputWifiPassword.text.toString().trim()
@@ -70,15 +99,18 @@ class WifiSettingsActivity : AppCompatActivity() {
         }
     }
 
+    private val passwordVisibilityState = mutableMapOf<Int, Boolean>()
+
     private fun togglePasswordVisibility(input: android.widget.EditText, icon: android.widget.ImageView) {
-        val isHidden = input.inputType and android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD != 0
-        if (isHidden) {
-            input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-            icon.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-        } else {
+        val isCurrentlyVisible = passwordVisibilityState[input.id] ?: false
+        if (isCurrentlyVisible) {
             input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             icon.setImageResource(android.R.drawable.ic_menu_view)
+        } else {
+            input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            icon.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
         }
+        passwordVisibilityState[input.id] = !isCurrentlyVisible
         input.setSelection(input.text.length)
     }
 }
