@@ -1,6 +1,7 @@
 package com.ahmad.netguard.network
 
 import com.ahmad.netguard.model.Device
+import com.ahmad.netguard.model.OpticalInfo
 
 interface RouterAdapter {
     suspend fun login(routerIp: String, username: String, password: String): Boolean
@@ -12,6 +13,7 @@ interface RouterAdapter {
     suspend fun getCpuUsagePercent(): Int?
     suspend fun getRouterModel(): String?
     suspend fun setGuestWifi(ssid: String, key: String, enable: Boolean): Boolean
+    suspend fun getOpticalInfo(): OpticalInfo?
     suspend fun getWifiSsidName(): String?
     suspend fun restartRouter(): Boolean
     suspend fun updateWifiSettings(ssid: String, key: String): Boolean

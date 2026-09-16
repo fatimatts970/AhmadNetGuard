@@ -38,6 +38,9 @@ class WifiSettingsActivity : AppCompatActivity() {
                     val router = RouterAdapterFactory.getAdapter()
                     val success = router.setGuestWifi(ssid, pass, true)
                     binding.progressGuestWifi.visibility = android.view.View.GONE
+                    if (success) {
+                        com.ahmad.netguard.network.RouterCredentialStore(this@WifiSettingsActivity).saveGuestWifi(ssid, pass)
+                    }
                     val msg = if (success) "Guest WiFi is on: $ssid" else "Failed! Check router connection."
                     Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
                 }

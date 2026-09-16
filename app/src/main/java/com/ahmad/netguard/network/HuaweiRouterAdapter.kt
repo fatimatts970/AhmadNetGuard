@@ -2,6 +2,7 @@ package com.ahmad.netguard.network
 
 import android.util.Base64
 import com.ahmad.netguard.model.Device
+import com.ahmad.netguard.model.OpticalInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -406,6 +407,35 @@ class HuaweiRouterAdapter : RouterAdapter {
             } catch (e: Exception) {
                 e.printStackTrace()
                 false
+            }
+        }
+    override suspend fun getOpticalInfo(): OpticalInfo? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$gateway/html/amp/opticinfo/opticinfo.asp")
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                val html = client.newCall(request).execute().body?.string() ?: return@withContext null
+                val pattern = Regex(
+                    "new stOpticInfo\\(\"[^\"]*\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"[^\"]*\",\"[^\"]*\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\",\"([^\"]*)\""
+                )
+                val m = pattern.find(html) ?: return@withContext null
+                OpticalInfo(
+                    txPowerDbm = unescapeHex(m.groupValues[1]).trim(),
+                    rxPowerDbm = unescapeHex(m.groupValues[2]).trim(),
+                    voltageMv = unescapeHex(m.groupValues[3]).trim(),
+                    temperatureC = unescapeHex(m.groupValues[4]).trim(),
+                    biasMa = unescapeHex(m.groupValues[5]).trim(),
+                    vendor = unescapeHex(m.groupValues[6]).trim(),
+                    serialNumber = unescapeHex(m.groupValues[7]).trim(),
+                    txWaveLengthNm = unescapeHex(m.groupValues[9]).trim(),
+                    rxWaveLengthNm = unescapeHex(m.groupValues[10]).trim()
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
             }
         }
 }

@@ -67,12 +67,30 @@ class DashboardActivity : AppCompatActivity() {
         tvModemName.text = if (!prefetchedModel.isNullOrBlank()) "Huawei $prefetchedModel" else "Loading…"
 
         findViewById<TextView>(R.id.text_run_speed_test).setOnClickListener { runSpeedTest() }
-        findViewById<android.widget.Switch>(R.id.switch_guest_wifi).setOnCheckedChangeListener { _, _ ->
-            Toast.makeText(
-                this,
-                "Coming soon — router ka is feature ka API abhi capture nahi hua",
-                Toast.LENGTH_SHORT
-            ).show()
+        val guestSwitch = findViewById<android.widget.Switch>(R.id.switch_guest_wifi)
+        var isRevertingGuestSwitch = false
+        guestSwitch.setOnCheckedChangeListener { switchView, isChecked ->
+            if (isRevertingGuestSwitch) {
+                isRevertingGuestSwitch = false
+                return@setOnCheckedChangeListener
+            }
+            val credStore = RouterCredentialStore(this)
+            val savedSsid = credStore.getGuestSsid()
+            val savedKey = credStore.getGuestKey()
+            if (savedSsid.isBlank() || savedKey.isBlank()) {
+                Toast.makeText(this, "Set a guest name & password in WiFi settings first", Toast.LENGTH_SHORT).show()
+                isRevertingGuestSwitch = true
+                switchView.isChecked = !isChecked
+            } else {
+                lifecycleScope.launch {
+                    val router = RouterAdapterFactory.getAdapter()
+                    val success = router.setGuestWifi(savedSsid, savedKey, isChecked)
+                    val msg = if (success) {
+                        if (isChecked) "Guest WiFi is on" else "Guest WiFi is off"
+                    } else "Failed! Check router connection."
+                    Toast.makeText(this@DashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
         }
 
         swipeRefresh.setOnRefreshListener { loadDashboardData() }
@@ -132,12 +150,18 @@ class DashboardActivity : AppCompatActivity() {
             confirmReboot()
         }
 
+        findViewById<LinearLayout>(R.id.more_wan_config).setOnClickListener {
+            startActivity(Intent(this, WanConfigActivity::class.java))
+        }
+
+        findViewById<LinearLayout>(R.id.more_optical_info).setOnClickListener {
+            startActivity(Intent(this, OpticalInfoActivity::class.java))
+        }
+
         val comingSoonIds = listOf(
             R.id.more_dhcp,
             R.id.more_ip_filter,
             R.id.more_parental,
-            R.id.more_wan_config,
-            R.id.more_wan,
             R.id.more_internet_control,
             R.id.more_admin
         )

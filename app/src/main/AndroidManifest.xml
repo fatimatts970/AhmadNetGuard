@@ -50,6 +50,7 @@
 
         <activity android:name=".ui.NetStatsActivity" android:exported="false" />
         <activity android:name=".ui.WanConfigActivity" android:exported="false" />
+        <activity android:name=".ui.OpticalInfoActivity" android:exported="false" />
 
         <service
             android:name=".history.ConnectionMonitorService"

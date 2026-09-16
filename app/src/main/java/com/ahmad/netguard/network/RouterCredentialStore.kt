@@ -23,7 +23,17 @@ class RouterCredentialStore(context: Context) {
     }
 
     fun isRememberMeEnabled(): Boolean = prefs.getBoolean("remember_me", false)
-    
+
+    fun saveGuestWifi(ssid: String, key: String) {
+        prefs.edit()
+            .putString("guest_ssid", ssid)
+            .putString("guest_key", key)
+            .apply()
+    }
+
+    fun getGuestSsid(): String = prefs.getString("guest_ssid", "") ?: ""
+    fun getGuestKey(): String = prefs.getString("guest_key", "") ?: ""
+
     fun clearCredentials() {
         prefs.edit().clear().apply()
     }

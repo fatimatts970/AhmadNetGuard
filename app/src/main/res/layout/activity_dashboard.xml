@@ -1039,7 +1039,7 @@
                 android:background="@color/bg_screen" />
 
             <LinearLayout
-                android:id="@+id/more_wan"
+                android:id="@+id/more_optical_info"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
@@ -1054,9 +1054,9 @@
                     android:layout_height="34dp"
                     android:background="@drawable/bg_icon_rounded"
                     android:padding="7dp"
-                    android:src="@android:drawable/ic_menu_mylocation"
+                    android:src="@android:drawable/ic_menu_compass"
                     app:tint="@color/green_online"
-                    android:contentDescription="WAN" />
+                    android:contentDescription="Optical Info" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -1068,7 +1068,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="WAN"
+                        android:text="Optical Info"
                         android:textColor="@color/text_primary"
                         android:textStyle="bold"
                         android:textSize="15sp" />
@@ -1076,7 +1076,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Connection status"
+                        android:text="Laser power, temp &amp; diagnostics"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
