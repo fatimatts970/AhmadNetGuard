@@ -53,10 +53,11 @@ class WifiSettingsActivity : AppCompatActivity() {
                 binding.progressGuestWifi.visibility = android.view.View.VISIBLE
                 val router = RouterAdapterFactory.getAdapter()
                 val ssid = binding.inputGuestSsid.text.toString().trim().ifEmpty { "Guest" }
-                val success = router.setGuestWifi(ssid, "00000000", false)
+                val diagnostic = router.setGuestWifiDiagnostic(ssid, "00000000", false)
                 binding.progressGuestWifi.visibility = android.view.View.GONE
-                val msg = if (success) "Guest WiFi turned off" else "Failed! Check router connection."
-                Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
+                val success = diagnostic.startsWith("SUCCESS")
+                val msg = if (success) "Guest WiFi turned off" else diagnostic
+                com.google.android.material.snackbar.Snackbar.make(binding.root, msg, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
             }
         }
 

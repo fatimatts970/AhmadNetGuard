@@ -84,11 +84,12 @@ class DashboardActivity : AppCompatActivity() {
             } else {
                 lifecycleScope.launch {
                     val router = RouterAdapterFactory.getAdapter()
-                    val success = router.setGuestWifi(savedSsid, savedKey, isChecked)
+                    val diagnostic = router.setGuestWifiDiagnostic(savedSsid, savedKey, isChecked)
+                    val success = diagnostic.startsWith("SUCCESS")
                     val msg = if (success) {
                         if (isChecked) "Guest WiFi is on" else "Guest WiFi is off"
-                    } else "Failed! Check router connection."
-                    Toast.makeText(this@DashboardActivity, msg, Toast.LENGTH_SHORT).show()
+                    } else diagnostic
+                    Toast.makeText(this@DashboardActivity, msg, Toast.LENGTH_LONG).show()
                 }
             }
         }
