@@ -353,6 +353,9 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
     override suspend fun setGuestWifi(ssid: String, key: String, enable: Boolean): Boolean =
+        setGuestWifiDiagnostic(ssid, key, enable).startsWith("SUCCESS")
+
+    override suspend fun setGuestWifiDiagnostic(ssid: String, key: String, enable: Boolean): String =
         withContext(Dispatchers.IO) {
             try {
                 val pageRequest = Request.Builder()
@@ -360,8 +363,13 @@ class HuaweiRouterAdapter : RouterAdapter {
                     .addHeader("Cookie", sessionCookie)
                     .get()
                     .build()
-                val pageHtml = client.newCall(pageRequest).execute().body?.string() ?: return@withContext false
-                val token = extractToken(pageHtml) ?: return@withContext false
+                val pageResponse = client.newCall(pageRequest).execute()
+                if (!pageResponse.isSuccessful) {
+                    return@withContext "FAIL: could not load WlanBasic.asp (HTTP ${pageResponse.code})"
+                }
+                val pageHtml = pageResponse.body?.string() ?: return@withContext "FAIL: empty page response"
+                val token = extractToken(pageHtml)
+                    ?: return@withContext "FAIL: no security token found on page (session may be logged out)"
 
                 val enableVal = if (enable) "1" else "0"
                 val formBody = FormBody.Builder()
@@ -403,12 +411,18 @@ class HuaweiRouterAdapter : RouterAdapter {
                     .post(formBody)
                     .build()
 
-                client.newCall(request).execute().isSuccessful
+                val response = client.newCall(request).execute()
+                val bodySnippet = response.body?.string()?.take(200) ?: ""
+                if (response.isSuccessful) {
+                    "SUCCESS"
+                } else {
+                    "FAIL: HTTP ${response.code} — $bodySnippet"
+                }
             } catch (e: Exception) {
-                e.printStackTrace()
-                false
+                "FAIL: ${e.javaClass.simpleName} — ${e.message}"
             }
         }
+
     override suspend fun getOpticalInfo(): OpticalInfo? =
         withContext(Dispatchers.IO) {
             try {

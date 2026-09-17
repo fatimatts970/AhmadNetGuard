@@ -13,6 +13,7 @@ interface RouterAdapter {
     suspend fun getCpuUsagePercent(): Int?
     suspend fun getRouterModel(): String?
     suspend fun setGuestWifi(ssid: String, key: String, enable: Boolean): Boolean
+    suspend fun setGuestWifiDiagnostic(ssid: String, key: String, enable: Boolean): String
     suspend fun getOpticalInfo(): OpticalInfo?
     suspend fun getWifiSsidName(): String?
     suspend fun restartRouter(): Boolean

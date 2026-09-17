@@ -36,13 +36,14 @@ class WifiSettingsActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     binding.progressGuestWifi.visibility = android.view.View.VISIBLE
                     val router = RouterAdapterFactory.getAdapter()
-                    val success = router.setGuestWifi(ssid, pass, true)
+                    val diagnostic = router.setGuestWifiDiagnostic(ssid, pass, true)
                     binding.progressGuestWifi.visibility = android.view.View.GONE
+                    val success = diagnostic.startsWith("SUCCESS")
                     if (success) {
                         com.ahmad.netguard.network.RouterCredentialStore(this@WifiSettingsActivity).saveGuestWifi(ssid, pass)
                     }
-                    val msg = if (success) "Guest WiFi is on: $ssid" else "Failed! Check router connection."
-                    Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
+                    val msg = if (success) "Guest WiFi is on: $ssid" else diagnostic
+                    com.google.android.material.snackbar.Snackbar.make(binding.root, msg, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
                 }
             }
         }
