@@ -353,7 +353,7 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
     override suspend fun setGuestWifi(ssid: String, key: String, enable: Boolean): Boolean =
-        setGuestWifiDiagnostic(ssid, key, enable).startsWith("SUCCESS")
+        setGuestWifiDiagnostic(ssid, key, enable).let { it == "SUCCESS" || it == "APPLIED" }
 
     override suspend fun setGuestWifiDiagnostic(ssid: String, key: String, enable: Boolean): String =
         withContext(Dispatchers.IO) {
@@ -418,6 +418,10 @@ class HuaweiRouterAdapter : RouterAdapter {
                 } else {
                     "FAIL: HTTP ${response.code} — $bodySnippet"
                 }
+            } catch (e: java.net.ConnectException) {
+                // Router ka WiFi radio guest settings apply karte waqt khud ~5 sec ke
+                // liye restart hota hai (main + guest dono) — ye normal hai, error nahi.
+                "APPLIED"
             } catch (e: Exception) {
                 "FAIL: ${e.javaClass.simpleName} — ${e.message}"
             }

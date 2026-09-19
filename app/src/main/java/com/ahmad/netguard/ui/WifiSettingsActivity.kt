@@ -1,22 +1,33 @@
 package com.ahmad.netguard.ui
 
+import android.graphics.Typeface
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
+import com.ahmad.netguard.R
 import com.ahmad.netguard.databinding.ActivityWifiSettingsBinding
 import com.ahmad.netguard.network.RouterAdapterFactory
+import com.ahmad.netguard.network.RouterCredentialStore
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
 class WifiSettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityWifiSettingsBinding
+    private lateinit var credStore: RouterCredentialStore
+    private var guestListPasswordVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityWifiSettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        credStore = RouterCredentialStore(this)
 
         binding.btnBack.setOnClickListener { finish() }
 
@@ -34,30 +45,24 @@ class WifiSettingsActivity : AppCompatActivity() {
                 Toast.makeText(this, "Enter a guest name and a password (8+ characters)", Toast.LENGTH_SHORT).show()
             } else {
                 lifecycleScope.launch {
-                    binding.progressGuestWifi.visibility = android.view.View.VISIBLE
+                    binding.progressGuestWifi.visibility = View.VISIBLE
                     val router = RouterAdapterFactory.getAdapter()
                     val diagnostic = router.setGuestWifiDiagnostic(ssid, pass, true)
-                    binding.progressGuestWifi.visibility = android.view.View.GONE
-                    val success = diagnostic.startsWith("SUCCESS")
-                    if (success) {
-                        com.ahmad.netguard.network.RouterCredentialStore(this@WifiSettingsActivity).saveGuestWifi(ssid, pass)
+                    binding.progressGuestWifi.visibility = View.GONE
+                    val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
+                    val msg = when (diagnostic) {
+                        "SUCCESS" -> "Guest WiFi is on: $ssid"
+                        "APPLIED" -> "Applying — router WiFi will restart for a few seconds, then guest WiFi will be on."
+                        else -> diagnostic
                     }
-                    val msg = if (success) "Guest WiFi is on: $ssid" else diagnostic
-                    com.google.android.material.snackbar.Snackbar.make(binding.root, msg, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
+                    if (success) {
+                        credStore.saveGuestWifi(ssid, pass)
+                        binding.inputGuestSsid.setText("")
+                        binding.inputGuestPassword.setText("")
+                        renderGuestList()
+                    }
+                    Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
                 }
-            }
-        }
-
-        binding.btnRemoveGuestWifi.setOnClickListener {
-            lifecycleScope.launch {
-                binding.progressGuestWifi.visibility = android.view.View.VISIBLE
-                val router = RouterAdapterFactory.getAdapter()
-                val ssid = binding.inputGuestSsid.text.toString().trim().ifEmpty { "Guest" }
-                val diagnostic = router.setGuestWifiDiagnostic(ssid, "00000000", false)
-                binding.progressGuestWifi.visibility = android.view.View.GONE
-                val success = diagnostic.startsWith("SUCCESS")
-                val msg = if (success) "Guest WiFi turned off" else diagnostic
-                com.google.android.material.snackbar.Snackbar.make(binding.root, msg, com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show()
             }
         }
 
@@ -102,6 +107,139 @@ class WifiSettingsActivity : AppCompatActivity() {
                 Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
             }
         }
+
+        renderGuestList()
+    }
+
+    // Router sirf EK guest network slot support karta hai (WLANConfiguration.2),
+    // isliye list mein hamesha ek hi card ban sakta hai — jo bhi abhi save/on hai.
+    private fun renderGuestList() {
+        val ssid = credStore.getGuestSsid()
+        val pass = credStore.getGuestKey()
+        binding.layoutGuestList.removeAllViews()
+
+        if (ssid.isBlank()) {
+            binding.textNoGuests.visibility = View.VISIBLE
+            return
+        }
+        binding.textNoGuests.visibility = View.GONE
+        binding.layoutGuestList.addView(buildGuestCard(ssid, pass))
+    }
+
+    private fun buildGuestCard(ssid: String, pass: String): CardView {
+        val density = resources.displayMetrics.density
+        val card = CardView(this).apply {
+            radius = 16 * density
+            setCardBackgroundColor(getColor(R.color.card_white))
+            cardElevation = 0f
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = (10 * density).toInt() }
+        }
+
+        val outer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (16 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+
+        outer.addView(TextView(this).apply {
+            text = ssid
+            setTextColor(getColor(R.color.text_primary))
+            textSize = 16f
+            setTypeface(typeface, Typeface.BOLD)
+        })
+
+        val passRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            (layoutParams as? LinearLayout.LayoutParams)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = (4 * density).toInt() }
+        }
+        val passText = TextView(this).apply {
+            text = if (guestListPasswordVisible) pass else "•".repeat(pass.length)
+            setTextColor(getColor(R.color.text_secondary))
+            textSize = 13f
+        }
+        val eyeBtn = android.widget.ImageButton(this).apply {
+            setImageResource(if (guestListPasswordVisible) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_view)
+            background = null
+            layoutParams = LinearLayout.LayoutParams((28 * density).toInt(), (28 * density).toInt()).apply {
+                marginStart = (8 * density).toInt()
+            }
+            setOnClickListener {
+                guestListPasswordVisible = !guestListPasswordVisible
+                renderGuestList()
+            }
+        }
+        passRow.addView(passText)
+        passRow.addView(eyeBtn)
+        outer.addView(passRow)
+
+        val divider = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (1 * density).toInt()).apply {
+                topMargin = (12 * density).toInt(); bottomMargin = (12 * density).toInt()
+            }
+            setBackgroundColor(getColor(R.color.bg_screen))
+        }
+        outer.addView(divider)
+
+        val btnRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+
+        fun pillButton(label: String, bg: Int, textColor: Int): TextView = TextView(this).apply {
+            text = label
+            setTextColor(getColor(textColor))
+            textSize = 12f
+            setTypeface(typeface, Typeface.BOLD)
+            setBackgroundResource(bg)
+            val padH = (14 * density).toInt(); val padV = (9 * density).toInt()
+            setPadding(padH, padV, padH, padV)
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = (6 * density).toInt()
+            }
+        }
+
+        val editBtn = pillButton("Edit", R.drawable.bg_pill_outline, R.color.brand_dark).apply {
+            setOnClickListener {
+                binding.inputGuestSsid.setText(ssid)
+                binding.inputGuestPassword.setText(pass)
+                Toast.makeText(this@WifiSettingsActivity, "Edit the fields above, then tap Save / Turn On", Toast.LENGTH_SHORT).show()
+            }
+        }
+        val deleteBtn = pillButton("Delete / Turn Off", R.drawable.bg_pill_outline_red, R.color.danger).apply {
+            (layoutParams as LinearLayout.LayoutParams).marginEnd = 0
+            setOnClickListener {
+                lifecycleScope.launch {
+                    binding.progressGuestWifi.visibility = View.VISIBLE
+                    val router = RouterAdapterFactory.getAdapter()
+                    val diagnostic = router.setGuestWifiDiagnostic(ssid, pass, false)
+                    binding.progressGuestWifi.visibility = View.GONE
+                    val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
+                    val msg = when (diagnostic) {
+                        "SUCCESS" -> "Guest WiFi turned off"
+                        "APPLIED" -> "Turning off — router WiFi will restart for a few seconds."
+                        else -> diagnostic
+                    }
+                    if (success) {
+                        credStore.saveGuestWifi("", "")
+                        renderGuestList()
+                    }
+                    Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        btnRow.addView(editBtn)
+        btnRow.addView(deleteBtn)
+        outer.addView(btnRow)
+
+        card.addView(outer)
+        return card
     }
 
     private val passwordVisibilityState = mutableMapOf<Int, Boolean>()
