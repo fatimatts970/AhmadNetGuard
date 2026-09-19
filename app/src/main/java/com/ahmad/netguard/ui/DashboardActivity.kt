@@ -75,22 +75,51 @@ class DashboardActivity : AppCompatActivity() {
                 return@setOnCheckedChangeListener
             }
             val credStore = RouterCredentialStore(this)
-            val savedSsid = credStore.getGuestSsid()
-            val savedKey = credStore.getGuestKey()
-            if (savedSsid.isBlank() || savedKey.isBlank()) {
+            val profiles = credStore.getGuestProfiles()
+
+            if (profiles.isEmpty()) {
                 Toast.makeText(this, "Set a guest name & password in WiFi settings first", Toast.LENGTH_SHORT).show()
                 isRevertingGuestSwitch = true
                 switchView.isChecked = !isChecked
-            } else {
+            } else if (!isChecked) {
+                val activeSsid = credStore.getGuestSsid()
+                val activeKey = credStore.getGuestKey()
                 lifecycleScope.launch {
                     val router = RouterAdapterFactory.getAdapter()
-                    val diagnostic = router.setGuestWifiDiagnostic(savedSsid, savedKey, isChecked)
-                    val success = diagnostic.startsWith("SUCCESS")
-                    val msg = if (success) {
-                        if (isChecked) "Guest WiFi is on" else "Guest WiFi is off"
-                    } else diagnostic
+                    val diagnostic = router.setGuestWifiDiagnostic(activeSsid, activeKey, false)
+                    val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
+                    val msg = if (success) "Guest WiFi is off" else diagnostic
                     Toast.makeText(this@DashboardActivity, msg, Toast.LENGTH_LONG).show()
                 }
+            } else if (profiles.size == 1) {
+                val (ssid, key) = profiles.first()
+                lifecycleScope.launch {
+                    val router = RouterAdapterFactory.getAdapter()
+                    val diagnostic = router.setGuestWifiDiagnostic(ssid, key, true)
+                    val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
+                    val msg = if (success) "Guest WiFi is on: $ssid" else diagnostic
+                    Toast.makeText(this@DashboardActivity, msg, Toast.LENGTH_LONG).show()
+                }
+            } else {
+                // Router hardware sirf ek waqt mein ek hi guest network chala sakta
+                // hai — is liye pick karne do konsa on karna hai.
+                isRevertingGuestSwitch = true
+                switchView.isChecked = false
+                val names = profiles.map { it.first }.toTypedArray()
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Turn on which guest network?")
+                    .setItems(names) { _, index ->
+                        val (ssid, key) = profiles[index]
+                        lifecycleScope.launch {
+                            val router = RouterAdapterFactory.getAdapter()
+                            val diagnostic = router.setGuestWifiDiagnostic(ssid, key, true)
+                            val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
+                            val msg = if (success) "Guest WiFi is on: $ssid" else diagnostic
+                            Toast.makeText(this@DashboardActivity, msg, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
         }
 
