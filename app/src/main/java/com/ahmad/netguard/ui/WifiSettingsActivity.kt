@@ -22,6 +22,7 @@ class WifiSettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityWifiSettingsBinding
     private lateinit var credStore: RouterCredentialStore
     private var guestListPasswordVisible = false
+    private var editingProfileName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,7 +57,8 @@ class WifiSettingsActivity : AppCompatActivity() {
                         else -> diagnostic
                     }
                     if (success) {
-                        credStore.saveGuestWifi(ssid, pass)
+                        credStore.saveGuestProfile(ssid, pass, editingProfileName)
+                        editingProfileName = null
                         binding.inputGuestSsid.setText("")
                         binding.inputGuestPassword.setText("")
                         renderGuestList()
@@ -111,22 +113,25 @@ class WifiSettingsActivity : AppCompatActivity() {
         renderGuestList()
     }
 
-    // Router sirf EK guest network slot support karta hai (WLANConfiguration.2),
-    // isliye list mein hamesha ek hi card ban sakta hai — jo bhi abhi save/on hai.
+    // Router hardware sirf EK guest WLAN slot support karta hai — jo bhi profile
+    // last "Save/Turn On" hua wahi actually broadcast ho raha hai. Baaki profiles
+    // yahan sirf local yaad rakhe hue hain taake dobara on karna aasan ho.
     private fun renderGuestList() {
-        val ssid = credStore.getGuestSsid()
-        val pass = credStore.getGuestKey()
+        val profiles = credStore.getGuestProfiles()
         binding.layoutGuestList.removeAllViews()
 
-        if (ssid.isBlank()) {
+        if (profiles.isEmpty()) {
             binding.textNoGuests.visibility = View.VISIBLE
             return
         }
         binding.textNoGuests.visibility = View.GONE
-        binding.layoutGuestList.addView(buildGuestCard(ssid, pass))
+        val activeSsid = credStore.getGuestSsid()
+        profiles.forEach { (ssid, pass) ->
+            binding.layoutGuestList.addView(buildGuestCard(ssid, pass, ssid == activeSsid))
+        }
     }
 
-    private fun buildGuestCard(ssid: String, pass: String): CardView {
+    private fun buildGuestCard(ssid: String, pass: String, isActive: Boolean): CardView {
         val density = resources.displayMetrics.density
         val card = CardView(this).apply {
             radius = 16 * density
@@ -144,12 +149,28 @@ class WifiSettingsActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
         }
 
-        outer.addView(TextView(this).apply {
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(this).apply {
             text = ssid
             setTextColor(getColor(R.color.text_primary))
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
+        if (isActive) {
+            titleRow.addView(TextView(this).apply {
+                text = "● ON"
+                setTextColor(getColor(R.color.green_online))
+                textSize = 11f
+                setTypeface(typeface, Typeface.BOLD)
+                setBackgroundResource(R.drawable.bg_pill_badge)
+                setPadding((10 * density).toInt(), (5 * density).toInt(), (10 * density).toInt(), (5 * density).toInt())
+            })
+        }
+        outer.addView(titleRow)
 
         val passRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -206,9 +227,10 @@ class WifiSettingsActivity : AppCompatActivity() {
 
         val editBtn = pillButton("Edit", R.drawable.bg_pill_outline, R.color.brand_dark).apply {
             setOnClickListener {
+                editingProfileName = ssid
                 binding.inputGuestSsid.setText(ssid)
                 binding.inputGuestPassword.setText(pass)
-                Toast.makeText(this@WifiSettingsActivity, "Edit the fields above, then tap Save / Turn On", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@WifiSettingsActivity, "Edit above, then tap Save / Turn On to update this guest", Toast.LENGTH_SHORT).show()
             }
         }
         val deleteBtn = pillButton("Delete / Turn Off", R.drawable.bg_pill_outline_red, R.color.danger).apply {
@@ -226,7 +248,8 @@ class WifiSettingsActivity : AppCompatActivity() {
                         else -> diagnostic
                     }
                     if (success) {
-                        credStore.saveGuestWifi("", "")
+                        credStore.deleteGuestProfile(ssid)
+                        if (editingProfileName == ssid) editingProfileName = null
                         renderGuestList()
                     }
                     Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
