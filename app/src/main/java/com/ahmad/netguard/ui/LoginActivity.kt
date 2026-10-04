@@ -62,7 +62,7 @@ class LoginActivity : AppCompatActivity() {
             binding.inputPassword.setSelection(binding.inputPassword.text?.length ?: 0)
         }
 
-        if (BiometricHelper.canUseBiometrics(this) && credStore.getPassword().isNotBlank()) {
+        if (ThemeManager.fingerprint(this) && BiometricHelper.canUseBiometrics(this) && credStore.getPassword().isNotBlank()) {
             binding.btnUseBiometric.visibility = View.VISIBLE
             binding.btnUseBiometric.setOnClickListener {
                 BiometricHelper.prompt(
@@ -136,7 +136,7 @@ class LoginActivity : AppCompatActivity() {
                 val ssid = adapter.getWifiSsidName()
                 val model = adapter.getRouterModel()
 
-                val intent = Intent(this@LoginActivity, DashboardActivity::class.java)
+                val intent = Intent(this@LoginActivity, HomeActivity::class.java)
                 if (!ssid.isNullOrBlank()) intent.putExtra(DashboardActivity.EXTRA_WIFI_NAME, ssid)
                 if (!model.isNullOrBlank()) intent.putExtra(DashboardActivity.EXTRA_ROUTER_MODEL, model)
                 startActivity(intent)

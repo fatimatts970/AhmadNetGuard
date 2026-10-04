@@ -38,6 +38,7 @@
             android:name=".ui.MainActivity"
             android:exported="false" />
 
+        <activity android:name=".ui.HomeActivity" android:exported="false" />
         <activity android:name=".ui.HistoryActivity" android:exported="false" />
 
         <activity android:name=".ui.UsageActivity" android:exported="false" />
