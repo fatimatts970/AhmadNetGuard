@@ -39,6 +39,9 @@
             android:exported="false" />
 
         <activity android:name=".ui.HomeActivity" android:exported="false" />
+        <activity android:name=".ui.InfoActivity" android:exported="false" />
+        <activity android:name=".ui.OpticalActivity" android:exported="false" />
+        <activity android:name=".ui.SpeedTestActivity" android:exported="false" />
         <activity android:name=".ui.HistoryActivity" android:exported="false" />
 
         <activity android:name=".ui.UsageActivity" android:exported="false" />

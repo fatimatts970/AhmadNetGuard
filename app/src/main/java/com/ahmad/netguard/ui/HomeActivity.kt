@@ -324,17 +324,17 @@ class HomeActivity : AppCompatActivity() {
     )
 
     private fun tiles(): List<Tile> = listOf(
-        Tile("wan", NgIcon.GLOBE, Color.parseColor("#6D4FC2"), "WAN Status", "PPPoE & IP details") { startActivity(Intent(this, WanConfigActivity::class.java)) },
+        Tile("wan", NgIcon.GLOBE, Color.parseColor("#6D4FC2"), "WAN Status", "PPPoE & IP details") { InfoActivity.open(this, InfoKind.WAN) },
         Tile("devices", NgIcon.DEVICES, Color.parseColor("#A0600F"), "Devices", "$connectedCount connected") { showTab(1) },
-        Tile("optical", NgIcon.SUN, Color.parseColor("#16A34A"), "Optical Info", "Laser power & temp") { startActivity(Intent(this, OpticalInfoActivity::class.java)) },
-        Tile("ports", NgIcon.NETWORK, Color.parseColor("#1E5BB8"), "Ethernet Ports", "Link status & speeds") { soon() },
-        Tile("devinfo", NgIcon.ROUTER, Color.parseColor("#A0600F"), "Device Info", "CPU, RAM & Versions") { showDeviceInfo() },
+        Tile("optical", NgIcon.SUN, Color.parseColor("#16A34A"), "Optical Info", "Laser power & temp") { startActivity(Intent(this, OpticalActivity::class.java)) },
+        Tile("ports", NgIcon.NETWORK, Color.parseColor("#1E5BB8"), "Ethernet Ports", "Link status & speeds") { InfoActivity.open(this, InfoKind.ETHERNET) },
+        Tile("devinfo", NgIcon.ROUTER, Color.parseColor("#A0600F"), "Device Info", "CPU, RAM & Versions") { InfoActivity.open(this, InfoKind.DEVICE) },
         Tile("usage", NgIcon.USAGE, Color.parseColor("#1E78C8"), "Usage", "Traffic statistics") { startActivity(Intent(this, NetStatsActivity::class.java)) },
-        Tile("voip", NgIcon.HEADSET, Color.parseColor("#0F8A4B"), "VoIP Status", "SIP line status") { soon() },
+        Tile("voip", NgIcon.HEADSET, Color.parseColor("#0F8A4B"), "VoIP Status", "SIP line status") { InfoActivity.open(this, InfoKind.VOIP) },
         Tile("wifipass", NgIcon.WIFI, Color.parseColor("#6D4FC2"), "Wi-Fi Password", "Change SSID & Key") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
         Tile("guest", NgIcon.PEOPLE, Color.parseColor("#475569"), "Guest", "Guest WiFi & users") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
         Tile("macfilter", NgIcon.SHIELD, Color.parseColor("#0F9D6E"), "MAC Filter", "Allow/Block devices") { startActivity(Intent(this, MacFilterActivity::class.java)) },
-        Tile("parental", NgIcon.FAMILY, Color.parseColor("#D13B3B"), "Parental Control", "Templates & restrictions") { soon() },
+        Tile("parental", NgIcon.FAMILY, Color.parseColor("#D13B3B"), "Parental Control", "Templates & restrictions") { InfoActivity.open(this, InfoKind.PARENTAL) },
         Tile("blocknet", NgIcon.BLOCK, Color.parseColor("#D13B3B"), "Block Internet", "without disconnect") { showTab(1) }
     )
 
@@ -413,6 +413,16 @@ class HomeActivity : AppCompatActivity() {
         line.setBackgroundColor(ColorUtils.setAlphaComponent(Color.WHITE, 70))
         hero.addView(line, lp(MATCH, dp(1)).also { it.topMargin = dp(14); it.bottomMargin = dp(10) })
 
+        val speedRow = hrow()
+        speedRow.setPadding(0, 0, 0, dp(12))
+        speedRow.addView(ic(NgIcon.USAGE, white, 22))
+        val sl = tv("Run Speed Test", 15f, white, true)
+        sl.setPadding(dp(12), 0, 0, 0)
+        speedRow.addView(sl, lp(0, WRAP, 1f))
+        speedRow.addView(ic(NgIcon.CHEVRON, white, 20))
+        speedRow.setOnClickListener { startActivity(Intent(this, SpeedTestActivity::class.java)) }
+        hero.addView(speedRow)
+
         val guestRow = hrow()
         guestRow.addView(ic(NgIcon.WIFI, white, 22))
         val gl = tv("Guest WiFi", 15f, white, true)
@@ -490,11 +500,11 @@ class HomeActivity : AppCompatActivity() {
             col,
             listCard(
                 listOf(
-                    Triple("Admin", "DHCP, firewall & ports", { soon() }),
-                    Triple("DNS Settings", "DNS policy, custom rules & host entries", { soon() }),
-                    Triple("Firewall", "Firewall level", { soon() }),
-                    Triple("WAN Connections", "Add, edit, or bind WAN connections", {
-                        startActivity(Intent(this, WanConfigActivity::class.java))
+                    Triple("Admin", "DHCP, firewall & ports", { InfoActivity.open(this, InfoKind.DHCP) }),
+                    Triple("DNS Settings", "DNS policy, custom rules & host entries", { InfoActivity.open(this, InfoKind.DNS) }),
+                    Triple("Firewall", "Firewall level", { InfoActivity.open(this, InfoKind.FIREWALL) }),
+                    Triple("WAN Connections", "WAN connection details", {
+                        InfoActivity.open(this, InfoKind.WAN)
                     }),
                     Triple("Reboot Modem", "Restarts the modem — all devices lose internet briefly", { confirmReboot() })
                 ),
@@ -699,10 +709,10 @@ class HomeActivity : AppCompatActivity() {
             col,
             listCard(
                 listOf(
-                    Triple("Parental Control", "Templates & restricted devices", { soon() }),
-                    Triple("DNS Settings", "DNS policy, custom rules & host entries", { soon() }),
-                    Triple("WAN Connections", "Add, edit, or bind multiple WAN connections", {
-                        startActivity(Intent(this, WanConfigActivity::class.java))
+                    Triple("Parental Control", "Templates & restricted devices", { InfoActivity.open(this, InfoKind.PARENTAL) }),
+                    Triple("DNS Settings", "DNS policy, custom rules & host entries", { InfoActivity.open(this, InfoKind.DNS) }),
+                    Triple("WAN Connections", "WAN connection details", {
+                        InfoActivity.open(this, InfoKind.WAN)
                     }),
                     Triple("Reboot Modem", "Restarts the modem — all devices lose internet briefly", { confirmReboot() })
                 ),

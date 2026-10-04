@@ -75,6 +75,22 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
+    /** Read-only: koi bhi router page session cookie ke saath fetch karo. */
+    suspend fun fetchPage(path: String): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "http://$gateway" + (if (path.startsWith("/")) path else "/$path")
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("Cookie", sessionCookie)
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { it.body?.string() }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
     override suspend fun getDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {
