@@ -59,12 +59,19 @@ class HomeActivity : AppCompatActivity() {
     private var cachedCpu: Int? = null
     private var connectedCount = 0
     private var blockedCount = 0
+    private var cachedSsid: String? = null
+    private var dashHero: TextView? = null
+    private var dashSpeed: TextView? = null
     private var dashModel: TextView? = null
     private var dashCpu: TextView? = null
     private var dashStatus: TextView? = null
     private var dashDevicesSub: TextView? = null
 
     // Devices state
+    private var devFilter = 0 // 0 = online/offline, 1 = blocked
+    private var devAll: List<Device> = emptyList()
+    private var devCardOnline: LinearLayout? = null
+    private var devCardBlocked: LinearLayout? = null
     private var devList: LinearLayout? = null
     private var devConnected: TextView? = null
     private var devBlocked: TextView? = null
@@ -301,6 +308,10 @@ class HomeActivity : AppCompatActivity() {
         applyChrome()
         content.removeAllViews()
         dashModel = null
+        dashHero = null
+        dashSpeed = null
+        devCardOnline = null
+        devCardBlocked = null
         dashCpu = null
         dashStatus = null
         dashDevicesSub = null
@@ -325,7 +336,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun tiles(): List<Tile> = listOf(
         Tile("wan", NgIcon.GLOBE, Color.parseColor("#6D4FC2"), "WAN Status", "PPPoE & IP details") { InfoActivity.open(this, InfoKind.WAN) },
-        Tile("devices", NgIcon.DEVICES, Color.parseColor("#A0600F"), "Devices", "$connectedCount connected") { showTab(1) },
+        Tile("devices", NgIcon.DEVICES, Color.parseColor("#A0600F"), "Devices", "$connectedCount online") { showTab(1) },
         Tile("optical", NgIcon.SUN, Color.parseColor("#16A34A"), "Optical Info", "Laser power & temp") { startActivity(Intent(this, OpticalActivity::class.java)) },
         Tile("ports", NgIcon.NETWORK, Color.parseColor("#1E5BB8"), "Ethernet Ports", "Link status & speeds") { InfoActivity.open(this, InfoKind.ETHERNET) },
         Tile("devinfo", NgIcon.ROUTER, Color.parseColor("#A0600F"), "Device Info", "CPU, RAM & Versions") { InfoActivity.open(this, InfoKind.DEVICE) },
@@ -377,7 +388,9 @@ class HomeActivity : AppCompatActivity() {
 
         val top = hrow()
         val heroTitle = vcol()
-        heroTitle.addView(tv(cachedModel ?: "Router", 22f, white, true))
+        val heroName = tv(cachedSsid ?: cachedModel ?: "Router", 22f, white, true)
+        dashHero = heroName
+        heroTitle.addView(heroName)
         heroTitle.addView(tv(creds.getGateway() + " · connected", 12f, soft))
         top.addView(heroTitle, lp(0, WRAP, 1f))
         val status = tv(if (cachedModel == null) "Loading" else "ONLINE", 12f, white, true)
@@ -404,24 +417,20 @@ class HomeActivity : AppCompatActivity() {
             b.addView(v)
             return b
         }
-        stats.addView(stat("Devices", connectedCount.toString(), false), lp(0, WRAP, 1f))
+        stats.addView(stat("Online", connectedCount.toString(), false), lp(0, WRAP, 1f))
         stats.addView(stat("CPU", cachedCpu?.let { "$it%" } ?: "—", true), lp(0, WRAP, 1f))
-        stats.addView(stat("Gateway", creds.getGateway(), false), lp(0, WRAP, 1f))
+        val speedBox = vcol()
+        speedBox.addView(tv("Run Speed Test", 12f, soft))
+        val speedVal = tv(speedText(), 17f, white, true)
+        dashSpeed = speedVal
+        speedBox.addView(speedVal)
+        speedBox.setOnClickListener { startActivity(Intent(this, SpeedTestActivity::class.java)) }
+        stats.addView(speedBox, lp(0, WRAP, 1f))
         hero.addView(stats)
 
         val line = View(this)
         line.setBackgroundColor(ColorUtils.setAlphaComponent(Color.WHITE, 70))
         hero.addView(line, lp(MATCH, dp(1)).also { it.topMargin = dp(14); it.bottomMargin = dp(10) })
-
-        val speedRow = hrow()
-        speedRow.setPadding(0, 0, 0, dp(12))
-        speedRow.addView(ic(NgIcon.USAGE, white, 22))
-        val sl = tv("Run Speed Test", 15f, white, true)
-        sl.setPadding(dp(12), 0, 0, 0)
-        speedRow.addView(sl, lp(0, WRAP, 1f))
-        speedRow.addView(ic(NgIcon.CHEVRON, white, 20))
-        speedRow.setOnClickListener { startActivity(Intent(this, SpeedTestActivity::class.java)) }
-        hero.addView(speedRow)
 
         val guestRow = hrow()
         guestRow.addView(ic(NgIcon.WIFI, white, 22))
@@ -513,19 +522,35 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
+    private fun speedText(): String = when {
+        QuickSpeed.running && QuickSpeed.lastMbps == null -> "Testing…"
+        QuickSpeed.lastMbps != null -> QuickSpeed.format(QuickSpeed.lastMbps)
+        else -> "Tap to test"
+    }
+
     private fun loadDashboardData() {
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
             val model = try { ad.getRouterModel() } catch (e: Exception) { null }
+            val ssid = try { ad.getWifiSsidName() } catch (e: Exception) { null }
             val cpu = try { ad.getCpuUsagePercent() } catch (e: Exception) { null }
             val devs = try { ad.getDevices() } catch (e: Exception) { emptyList<Device>() }
             if (!model.isNullOrBlank()) cachedModel = model
+            if (!ssid.isNullOrBlank()) cachedSsid = ssid
             cachedCpu = cpu
-            connectedCount = devs.size
+            connectedCount = devs.count { it.isOnline }
             dashModel?.text = cachedModel ?: "Router"
+            dashHero?.text = cachedSsid ?: cachedModel ?: "Router"
             dashCpu?.text = cpu?.let { "$it%" } ?: "—"
             dashStatus?.text = if (cachedModel == null) "Loading" else "ONLINE"
-            dashDevicesSub?.text = "$connectedCount connected"
+            dashDevicesSub?.text = "$connectedCount online"
+        }
+        if (ThemeManager.autoSpeed && !QuickSpeed.isFresh() && !QuickSpeed.running) {
+            dashSpeed?.text = "Testing…"
+            lifecycleScope.launch {
+                val r = try { QuickSpeed.run() } catch (e: Exception) { null }
+                dashSpeed?.text = if (r != null) QuickSpeed.format(r) else "Tap to test"
+            }
         }
     }
 
@@ -575,7 +600,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun buildDevices(): View = scroller { col ->
         val head = hrow()
-        head.addView(tv("Connected Devices", 22f, cText(), true), lp(0, WRAP, 1f))
+        head.addView(tv("Devices", 22f, cText(), true), lp(0, WRAP, 1f))
         val refresh = FrameLayout(this)
         refresh.setPadding(dp(8), dp(8), dp(4), dp(8))
         refresh.addView(ic(NgIcon.REFRESH, cText(), 24))
@@ -588,26 +613,83 @@ class HomeActivity : AppCompatActivity() {
         val n1 = tv(connectedCount.toString(), 24f, cText(), true)
         devConnected = n1
         c1.addView(n1)
-        c1.addView(tv("Connected", 12f, cSub()))
+        c1.addView(tv("Online", 12f, cSub()))
+        c1.setOnClickListener { devFilter = 0; renderDevices() }
+        devCardOnline = c1
         val c2 = card(14)
         val n2 = tv(blockedCount.toString(), 24f, ThemeManager.danger(), true)
         devBlocked = n2
         c2.addView(n2)
-        c2.addView(tv("Blocked", 12f, cSub()))
+        c2.addView(tv("Blocked  ›", 12f, cSub()))
+        c2.setOnClickListener { devFilter = 1; renderDevices() }
+        devCardBlocked = c2
         val p1 = lp(0, WRAP, 1f)
         p1.marginEnd = dp(10)
         summary.addView(c1, p1)
         summary.addView(c2, lp(0, WRAP, 1f))
-        add(col, summary, bottom = 12)
-
-        val hint = card(12)
-        hint.addView(tv("Pencil dabao device ka naam badalne ke liye. Block Internet se device poori tarah block ho jata hai.", 12f, cSub()))
-        add(col, hint, bottom = 12)
+        add(col, summary, bottom = 14)
 
         val box = vcol()
         devList = box
         add(col, box, bottom = 0)
+        if (devAll.isNotEmpty()) renderDevices()
         loadDevices()
+    }
+
+    private fun groupTitle(title: String, count: Int, color: Int): View {
+        val r = hrow()
+        r.setPadding(dp(2), dp(6), dp(2), 0)
+        val dot = View(this)
+        val dg = GradientDrawable()
+        dg.shape = GradientDrawable.OVAL
+        dg.setColor(color)
+        dot.background = dg
+        r.addView(dot, lp(dp(10), dp(10)))
+        val t = tv(title, 20f, cText(), true)
+        t.setPadding(dp(10), 0, 0, 0)
+        r.addView(t, lp(0, WRAP, 1f))
+        r.addView(pill(count.toString(), color))
+        return r
+    }
+
+    private fun summaryBg(selected: Boolean, color: Int): Drawable {
+        if (!selected) return NgKit.cardBg(this)
+        val g = GradientDrawable()
+        g.cornerRadius = dpf(ThemeManager.radiusDp())
+        g.setColor(ColorUtils.blendARGB(ThemeManager.surface(), color, 0.12f))
+        g.setStroke(dp(2), color)
+        return g
+    }
+
+    private fun renderDevices() {
+        val box = devList ?: return
+        box.removeAllViews()
+        devConnected?.text = connectedCount.toString()
+        devBlocked?.text = blockedCount.toString()
+        devCardOnline?.background = summaryBg(devFilter == 0, cAcc())
+        devCardBlocked?.background = summaryBg(devFilter == 1, ThemeManager.danger())
+
+        val list = devAll
+        if (devFilter == 1) {
+            val bl = list.filter { it.isBlocked }
+            add(box, groupTitle("Blocked Users", bl.size, ThemeManager.danger()), bottom = 10)
+            if (bl.isEmpty()) add(box, tv("Koi blocked user nahi hai", 14f, cSub()), bottom = 0)
+            for (d in bl) add(box, deviceCard(d), bottom = 12)
+            return
+        }
+
+        val online = list.filter { it.isOnline && !it.isBlocked }
+        val offline = list.filter { !it.isOnline && !it.isBlocked }
+
+        add(box, groupTitle("Online Users", online.size, cAcc()), bottom = 10)
+        if (online.isEmpty()) add(box, tv("Abhi koi device online nahi", 14f, cSub()), bottom = 12)
+        for (d in online) add(box, deviceCard(d), bottom = 12)
+
+        val gap = View(this)
+        add(box, gap, h = dp(8), bottom = 0)
+        add(box, groupTitle("Offline Users", offline.size, cSub()), bottom = 10)
+        if (offline.isEmpty()) add(box, tv("Koi offline device nahi", 14f, cSub()), bottom = 0)
+        for (d in offline) add(box, deviceCard(d), bottom = 12)
     }
 
     private fun loadDevices() {
@@ -628,17 +710,11 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
 
-            connectedCount = devs.size
+            devAll = list
+            connectedCount = devs.count { it.isOnline && !blocked.contains(it.macAddress.uppercase()) }
             blockedCount = blocked.size
             if (devList !== box) return@launch // tab badal gaya
-
-            devConnected?.text = devs.size.toString()
-            devBlocked?.text = blocked.size.toString()
-            box.removeAllViews()
-            if (list.isEmpty()) {
-                add(box, tv("Koi device nahi mila", 14f, cSub()), bottom = 0)
-            }
-            for (d in list) add(box, deviceCard(d), bottom = 12)
+            renderDevices()
         }
     }
 
@@ -656,7 +732,7 @@ class HomeActivity : AppCompatActivity() {
         top.addView(edit)
         top.addView(View(this), lp(0, 1, 1f))
         val statusText = if (d.isBlocked) "Blocked" else if (d.isOnline) "Online" else "Offline"
-        top.addView(tv(statusText, 12f, if (d.isBlocked) ThemeManager.danger() else cAcc(), true))
+        top.addView(tv(statusText, 12f, if (d.isBlocked) ThemeManager.danger() else if (d.isOnline) cAcc() else cSub(), true))
         c.addView(top)
 
         val info = tv(d.ipAddress + " • " + d.macAddress, 12f, cSub())
@@ -736,6 +812,14 @@ class HomeActivity : AppCompatActivity() {
             switchCard("New Device Alerts", "Background mein router check karke naye device ka alert", ThemeManager.alertsOn) {
                 ThemeManager.alertsOn = it
                 if (it) startMonitoring() else stopService(Intent(this, ConnectionMonitorService::class.java))
+            },
+            bottom = 14
+        )
+
+        add(
+            col,
+            switchCard("Auto Speed Test", "Dashboard khulte hi speed khud naap lo (~10 MB data)", ThemeManager.autoSpeed) {
+                ThemeManager.autoSpeed = it
             },
             bottom = 14
         )

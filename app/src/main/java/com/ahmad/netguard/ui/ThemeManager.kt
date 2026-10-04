@@ -53,7 +53,7 @@ object ThemeManager {
         set(v) { p().edit().putBoolean("dark", v).apply() }
 
     var accentIndex: Int
-        get() = p().getInt("accent", 2)
+        get() = p().getInt("accent", 5)
         set(v) { p().edit().putInt("accent", v).apply() }
 
     /** 0 Classic, 1 One UI, 2 Ice, 3 Halo */
@@ -77,6 +77,10 @@ object ThemeManager {
     var alertsOn: Boolean
         get() = p().getBoolean("alerts", true)
         set(v) { p().edit().putBoolean("alerts", v).apply() }
+
+    var autoSpeed: Boolean
+        get() = p().getBoolean("autospeed", true)
+        set(v) { p().edit().putBoolean("autospeed", v).apply() }
 
     fun fingerprint(context: Context): Boolean {
         init(context)
