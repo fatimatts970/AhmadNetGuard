@@ -2,69 +2,152 @@ package com.ahmad.netguard.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.lifecycleScope
-import com.ahmad.netguard.databinding.ActivityLoginBinding
 import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.network.RouterCredentialStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
 import java.net.InetAddress
+import java.net.URL
 
 class LoginActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityLoginBinding
     private lateinit var credStore: RouterCredentialStore
-    private var isPasswordVisible = false
+    private lateinit var inputIp: EditText
+    private lateinit var inputUser: EditText
+    private lateinit var inputPass: EditText
+    private lateinit var checkRemember: CheckBox
+    private lateinit var btnConnect: LinearLayout
+    private lateinit var btnConnectText: TextView
+    private lateinit var btnConnectIcon: IconView
+    private lateinit var progress: ProgressBar
+    private lateinit var errorText: TextView
+    private lateinit var scanBox: LinearLayout
+    private lateinit var eyeIcon: IconView
+
+    private var passVisible = false
+    private var busy = false
+
+    private fun dp(v: Int): Int = NgKit.dp(this, v)
+    private fun dpf(v: Float): Float = NgKit.dpf(this, v)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        ThemeManager.init(this)
+        NgKit.applyNightMode()
         super.onCreate(savedInstanceState)
-        binding = ActivityLoginBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
         credStore = RouterCredentialStore(this)
+        NgKit.chrome(this)
 
-        val savedGateway = credStore.getGateway()
-        val savedUsername = credStore.getUsername()
+        val sv = ScrollView(this)
+        sv.background = NgKit.screenBg()
+        sv.isFillViewport = true
+        val col = LinearLayout(this)
+        col.orientation = LinearLayout.VERTICAL
+        col.gravity = Gravity.CENTER_HORIZONTAL
+        col.setPadding(dp(20), dp(40), dp(20), dp(28))
+        sv.addView(col, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        // Agar pehle se saved gateway nahi hai, to phone ke actual WiFi
-        // router ka gateway IP auto-detect karke bhar dete hain
-        if (savedGateway.isBlank() || savedGateway == "192.168.100.1") {
-            val detectedGateway = detectWifiGatewayIp()
-            if (detectedGateway != null) {
-                binding.inputRouterIp.setText(detectedGateway)
-            } else if (savedGateway.isNotBlank()) {
-                binding.inputRouterIp.setText(savedGateway)
-            }
-        } else {
-            binding.inputRouterIp.setText(savedGateway)
-        }
+        val acc = ThemeManager.accent()
 
-        if (savedUsername.isNotBlank()) binding.inputUsername.setText(savedUsername)
-        binding.checkboxRememberMe.isChecked = credStore.isRememberMeEnabled()
+        // logo
+        val logo = LinearLayout(this)
+        logo.gravity = Gravity.CENTER
+        logo.background = NgKit.heroBg(this)
+        logo.elevation = dpf(6f)
+        logo.addView(NgKit.icon(this, NgIcon.ROUTER, Color.WHITE), LinearLayout.LayoutParams(dp(46), dp(46)))
+        col.addView(logo, LinearLayout.LayoutParams(dp(84), dp(84)))
 
-        // Eye icon — password show/hide toggle
-        binding.btnTogglePassword.setOnClickListener {
-            isPasswordVisible = !isPasswordVisible
-            if (isPasswordVisible) {
-                binding.inputPassword.inputType =
-                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-                binding.btnTogglePassword.setImageResource(android.R.drawable.ic_menu_view)
-            } else {
-                binding.inputPassword.inputType =
-                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-                binding.btnTogglePassword.setImageResource(android.R.drawable.ic_secure)
-            }
-            // Cursor ko end mein rakhna
-            binding.inputPassword.setSelection(binding.inputPassword.text?.length ?: 0)
-        }
+        col.addView(text("AHMAD NetGuard", 28f, ThemeManager.text(), true).also { it.gravity = Gravity.CENTER }, lpWrap(top = 14))
+        col.addView(text("Sign in to manage your router", 14f, ThemeManager.sub(), false).also { it.gravity = Gravity.CENTER }, lpWrap(top = 2, bottom = 22))
 
+        // card
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(18), dp(16), dp(18), dp(18))
+        card.background = NgKit.heroBg(this)
+        card.elevation = dpf(6f)
+
+        inputIp = EditText(this)
+        inputUser = EditText(this)
+        inputPass = EditText(this)
+
+        card.addView(text("Modem IP / Host", 13f, Color.WHITE, true), lpWrap(bottom = 6))
+        card.addView(field(NgIcon.ROUTER, inputIp, "192.168.100.1", false), lpFull(bottom = 14))
+        card.addView(text("Username", 13f, Color.WHITE, true), lpWrap(bottom = 6))
+        card.addView(field(NgIcon.USER, inputUser, "admin", false), lpFull(bottom = 14))
+        card.addView(text("Password", 13f, Color.WHITE, true), lpWrap(bottom = 6))
+        card.addView(field(NgIcon.LOCK, inputPass, "Enter password", true), lpFull(bottom = 10))
+
+        checkRemember = CheckBox(this)
+        checkRemember.text = "Save credentials for next time"
+        checkRemember.setTextColor(Color.WHITE)
+        checkRemember.textSize = 14f
+        checkRemember.buttonTintList = ColorStateList.valueOf(Color.WHITE)
+        card.addView(checkRemember, lpWrap())
+        col.addView(card, lpFull(bottom = 16))
+
+        // error
+        errorText = text("", 13f, ThemeManager.danger(), true)
+        errorText.gravity = Gravity.CENTER
+        errorText.visibility = View.GONE
+        col.addView(errorText, lpFull(bottom = 10))
+
+        // connect button
+        btnConnect = LinearLayout(this)
+        btnConnect.gravity = Gravity.CENTER
+        btnConnect.orientation = LinearLayout.HORIZONTAL
+        btnConnectIcon = NgKit.icon(this, NgIcon.ARROW_IN, Color.WHITE)
+        btnConnect.addView(btnConnectIcon, LinearLayout.LayoutParams(dp(22), dp(22)))
+        progress = ProgressBar(this)
+        progress.visibility = View.GONE
+        progress.indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
+        btnConnect.addView(progress, LinearLayout.LayoutParams(dp(22), dp(22)))
+        btnConnectText = text("Connect", 16f, Color.WHITE, true)
+        btnConnectText.setPadding(dp(10), 0, 0, 0)
+        btnConnect.addView(btnConnectText)
+        setConnectStyle(true)
+        btnConnect.setOnClickListener { onConnectClicked() }
+        col.addView(btnConnect, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)).also { it.bottomMargin = dp(12) })
+
+        // biometric
         if (ThemeManager.fingerprint(this) && BiometricHelper.canUseBiometrics(this) && credStore.getPassword().isNotBlank()) {
-            binding.btnUseBiometric.visibility = View.VISIBLE
-            binding.btnUseBiometric.setOnClickListener {
+            val bio = LinearLayout(this)
+            bio.gravity = Gravity.CENTER
+            bio.orientation = LinearLayout.HORIZONTAL
+            val bg = GradientDrawable()
+            bg.cornerRadius = dpf(40f)
+            bg.setStroke(dp(2), ColorUtils.setAlphaComponent(acc, 160))
+            bg.setColor(Color.TRANSPARENT)
+            bio.background = bg
+            bio.addView(NgKit.icon(this, NgIcon.FINGERPRINT, acc), LinearLayout.LayoutParams(dp(22), dp(22)))
+            val bt = text("Login with Biometrics", 15f, acc, true)
+            bt.setPadding(dp(10), 0, 0, 0)
+            bio.addView(bt)
+            bio.setOnClickListener {
                 BiometricHelper.prompt(
                     activity = this,
                     onSuccess = {
@@ -73,19 +156,154 @@ class LoginActivity : AppCompatActivity() {
                     onFailure = { showError("Biometric authentication failed") }
                 )
             }
+            col.addView(bio, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)).also { it.bottomMargin = dp(20) })
         }
 
-        binding.btnConnect.setOnClickListener {
-            val gateway = binding.inputRouterIp.text.toString().trim()
-            val username = binding.inputUsername.text.toString().trim()
-            val pass = binding.inputPassword.text.toString().trim()
+        // auto discovery
+        val disc = LinearLayout(this)
+        disc.orientation = LinearLayout.HORIZONTAL
+        disc.gravity = Gravity.CENTER_VERTICAL
+        disc.addView(text("Auto-\nDiscovery", 13f, ThemeManager.sub(), true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        disc.addView(linkButton(NgIcon.RADAR, "Scan Modem") { scanModem() })
+        val sp = View(this)
+        disc.addView(sp, LinearLayout.LayoutParams(dp(12), 1))
+        disc.addView(linkButton(NgIcon.SEARCH, "Scan IP") { scanIp() })
+        col.addView(disc, lpFull(bottom = 10))
 
-            if (gateway.isEmpty() || pass.isEmpty()) {
-                showError("Enter IP and Password")
-                return@setOnClickListener
+        scanBox = LinearLayout(this)
+        scanBox.orientation = LinearLayout.VERTICAL
+        col.addView(scanBox, lpFull())
+
+        setContentView(sv)
+
+        // saved values
+        val savedGateway = credStore.getGateway()
+        val savedUsername = credStore.getUsername()
+        if (savedGateway.isBlank() || savedGateway == "192.168.100.1") {
+            val detected = detectWifiGatewayIp()
+            if (detected != null) inputIp.setText(detected)
+            else if (savedGateway.isNotBlank()) inputIp.setText(savedGateway)
+        } else {
+            inputIp.setText(savedGateway)
+        }
+        if (savedUsername.isNotBlank()) inputUser.setText(savedUsername)
+        checkRemember.isChecked = credStore.isRememberMeEnabled()
+        if (credStore.isRememberMeEnabled() && credStore.getPassword().isNotBlank()) {
+            inputPass.setText(credStore.getPassword())
+        }
+    }
+
+    // ------------------------------------------------------------ UI helpers
+
+    private fun text(t: String, sp: Float, color: Int, bold: Boolean): TextView {
+        val v = TextView(this)
+        v.text = t
+        v.textSize = sp
+        v.setTextColor(color)
+        if (bold) v.setTypeface(v.typeface, Typeface.BOLD)
+        return v
+    }
+
+    private fun lpWrap(top: Int = 0, bottom: Int = 0): LinearLayout.LayoutParams {
+        val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        p.topMargin = dp(top)
+        p.bottomMargin = dp(bottom)
+        return p
+    }
+
+    private fun lpFull(bottom: Int = 0): LinearLayout.LayoutParams {
+        val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        p.bottomMargin = dp(bottom)
+        return p
+    }
+
+    private fun field(icon: NgIcon, edit: EditText, hint: String, password: Boolean): View {
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(16), 0, dp(12), 0)
+        val bg = GradientDrawable()
+        bg.cornerRadius = dpf(30f)
+        bg.setColor(Color.WHITE)
+        row.background = bg
+
+        row.addView(NgKit.icon(this, icon, Color.parseColor("#334155")), LinearLayout.LayoutParams(dp(22), dp(22)))
+        edit.hint = hint
+        edit.setHintTextColor(Color.parseColor("#94A3B8"))
+        edit.setTextColor(Color.parseColor("#0F172A"))
+        edit.textSize = 16f
+        edit.background = null
+        edit.setSingleLine(true)
+        edit.setPadding(dp(14), dp(16), dp(8), dp(16))
+        if (password) {
+            edit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        } else if (icon == NgIcon.ROUTER) {
+            edit.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        } else {
+            edit.inputType = InputType.TYPE_CLASS_TEXT
+        }
+        row.addView(edit, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        if (password) {
+            eyeIcon = NgKit.icon(this, NgIcon.EYE_OFF, Color.parseColor("#334155"))
+            val holder = FrameLayout(this)
+            holder.setPadding(dp(6), dp(6), dp(6), dp(6))
+            holder.addView(eyeIcon, FrameLayout.LayoutParams(dp(22), dp(22)))
+            holder.setOnClickListener {
+                passVisible = !passVisible
+                edit.inputType = if (passVisible)
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                else
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                eyeIcon.icon = if (passVisible) NgIcon.EYE else NgIcon.EYE_OFF
+                edit.setSelection(edit.text?.length ?: 0)
             }
-            attemptLogin(gateway, username.ifEmpty { "admin" }, pass)
+            row.addView(holder)
         }
+        return row
+    }
+
+    private fun linkButton(icon: NgIcon, label: String, action: () -> Unit): View {
+        val r = LinearLayout(this)
+        r.orientation = LinearLayout.HORIZONTAL
+        r.gravity = Gravity.CENTER_VERTICAL
+        r.setPadding(dp(6), dp(10), dp(6), dp(10))
+        r.addView(NgKit.icon(this, icon, ThemeManager.accent()), LinearLayout.LayoutParams(dp(20), dp(20)))
+        val t = text(label, 14f, ThemeManager.accent(), true)
+        t.setPadding(dp(6), 0, 0, 0)
+        r.addView(t)
+        r.setOnClickListener { action() }
+        return r
+    }
+
+    private fun setConnectStyle(enabled: Boolean) {
+        val g = GradientDrawable()
+        g.cornerRadius = dpf(40f)
+        g.setColor(
+            if (enabled) ThemeManager.accent()
+            else ColorUtils.setAlphaComponent(ThemeManager.sub(), 90)
+        )
+        btnConnect.background = g
+        btnConnect.elevation = if (enabled) dpf(4f) else 0f
+    }
+
+    private fun showError(message: String) {
+        errorText.text = message
+        errorText.visibility = View.VISIBLE
+    }
+
+    // ------------------------------------------------------------ actions
+
+    private fun onConnectClicked() {
+        if (busy) return
+        val gateway = inputIp.text.toString().trim()
+        val username = inputUser.text.toString().trim()
+        val pass = inputPass.text.toString().trim()
+        if (gateway.isEmpty() || pass.isEmpty()) {
+            showError("Enter IP and Password")
+            return
+        }
+        attemptLogin(gateway, username.ifEmpty { "admin" }, pass)
     }
 
     private fun detectWifiGatewayIp(): String? {
@@ -93,7 +311,6 @@ class LoginActivity : AppCompatActivity() {
             val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             val gatewayInt = wifiManager?.dhcpInfo?.gateway ?: return null
             if (gatewayInt == 0) return null
-
             val bytes = byteArrayOf(
                 (gatewayInt and 0xFF).toByte(),
                 (gatewayInt shr 8 and 0xFF).toByte(),
@@ -106,21 +323,95 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+    private fun scanIp() {
+        val ip = detectWifiGatewayIp()
+        scanBox.removeAllViews()
+        if (ip != null) {
+            inputIp.setText(ip)
+            scanBox.addView(routerChip("Gateway", ip), lpFull(bottom = 8))
+        } else {
+            scanBox.addView(text("WiFi se connected nahi — gateway nahi mila", 13f, ThemeManager.sub(), false), lpWrap())
+        }
+    }
+
+    private fun scanModem() {
+        scanBox.removeAllViews()
+        scanBox.addView(text("Searching…", 13f, ThemeManager.sub(), false), lpWrap())
+        lifecycleScope.launch {
+            val candidates = LinkedHashSet<String>()
+            detectWifiGatewayIp()?.let { candidates.add(it) }
+            candidates.addAll(listOf("192.168.100.1", "192.168.1.1", "192.168.0.1", "192.168.8.1", "192.168.2.1", "10.0.0.1"))
+            val found: List<String> = withContext(Dispatchers.IO) {
+                coroutineScope {
+                    candidates.map { ip -> async { ip to probe(ip) } }.awaitAll()
+                }.filter { it.second }.map { it.first }
+            }
+            scanBox.removeAllViews()
+            if (found.isEmpty()) {
+                scanBox.addView(text("Koi modem nahi mila — IP khud likho", 13f, ThemeManager.sub(), false), lpWrap())
+            } else {
+                for (ip in found) scanBox.addView(routerChip("Router found", ip), lpFull(bottom = 8))
+            }
+        }
+    }
+
+    private fun probe(ip: String): Boolean {
+        return try {
+            val conn = URL("http://$ip/").openConnection() as HttpURLConnection
+            conn.connectTimeout = 1200
+            conn.readTimeout = 1200
+            conn.instanceFollowRedirects = false
+            val code = conn.responseCode
+            conn.disconnect()
+            code > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun routerChip(title: String, ip: String): View {
+        val acc = ThemeManager.accent()
+        val r = LinearLayout(this)
+        r.orientation = LinearLayout.HORIZONTAL
+        r.gravity = Gravity.CENTER_VERTICAL
+        r.setPadding(dp(14), dp(12), dp(14), dp(12))
+        val g = GradientDrawable()
+        g.cornerRadius = dpf(16f)
+        g.setColor(ColorUtils.setAlphaComponent(acc, 36))
+        g.setStroke(dp(1), ColorUtils.setAlphaComponent(acc, 140))
+        r.background = g
+        r.addView(NgKit.icon(this, NgIcon.ROUTER, acc), LinearLayout.LayoutParams(dp(24), dp(24)))
+        val tb = LinearLayout(this)
+        tb.orientation = LinearLayout.VERTICAL
+        tb.setPadding(dp(12), 0, 0, 0)
+        tb.addView(text(title, 14f, ThemeManager.text(), true))
+        tb.addView(text(ip, 12f, ThemeManager.sub(), false))
+        r.addView(tb, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        r.setOnClickListener { inputIp.setText(ip) }
+        return r
+    }
+
+    private fun setBusy(on: Boolean) {
+        busy = on
+        progress.visibility = if (on) View.VISIBLE else View.GONE
+        btnConnectIcon.visibility = if (on) View.GONE else View.VISIBLE
+        btnConnectText.text = if (on) "Connecting…" else "Connect"
+        setConnectStyle(!on)
+    }
+
     private fun attemptLogin(gateway: String, username: String, pass: String) {
         lifecycleScope.launch {
-            binding.btnConnect.isEnabled = false
-            binding.progressConnecting.visibility = View.VISIBLE
-            binding.textLoginError.visibility = View.GONE
+            setBusy(true)
+            errorText.visibility = View.GONE
 
             val adapter = RouterAdapterFactory.getAdapter()
             val success = adapter.login(gateway, username, pass)
 
-            binding.btnConnect.isEnabled = true
-            binding.progressConnecting.visibility = View.GONE
+            setBusy(false)
 
             if (success) {
                 credStore.saveCredentials(gateway, username, pass)
-                credStore.setRememberMe(binding.checkboxRememberMe.isChecked)
+                credStore.setRememberMe(checkRemember.isChecked)
 
                 com.ahmad.netguard.history.AppDatabase.getInstance(this@LoginActivity).appLogDao().insert(
                     com.ahmad.netguard.history.AppLog(
@@ -131,14 +422,9 @@ class LoginActivity : AppCompatActivity() {
                     )
                 )
 
-                // Dashboard khulne se pehle hi real WiFi name aur router model
-                // fetch kar lete hain, taake Dashboard khulte hi "Loading..." na dikhe
-                val ssid = adapter.getWifiSsidName()
                 val model = adapter.getRouterModel()
-
                 val intent = Intent(this@LoginActivity, HomeActivity::class.java)
-                if (!ssid.isNullOrBlank()) intent.putExtra(DashboardActivity.EXTRA_WIFI_NAME, ssid)
-                if (!model.isNullOrBlank()) intent.putExtra(DashboardActivity.EXTRA_ROUTER_MODEL, model)
+                if (!model.isNullOrBlank()) intent.putExtra(HomeActivity.EXTRA_MODEL, model)
                 startActivity(intent)
                 finish()
             } else {
@@ -153,10 +439,5 @@ class LoginActivity : AppCompatActivity() {
                 showError("Could not connect: check IP, username and password")
             }
         }
-    }
-
-    private fun showError(message: String) {
-        binding.textLoginError.text = message
-        binding.textLoginError.visibility = View.VISIBLE
     }
 }

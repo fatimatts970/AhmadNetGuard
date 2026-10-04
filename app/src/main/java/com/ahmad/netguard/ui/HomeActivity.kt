@@ -24,7 +24,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.graphics.ColorUtils
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.history.ConnectionMonitorService
 import com.ahmad.netguard.model.Device
@@ -42,6 +41,10 @@ private val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
  * Poora UI code se bana hai (XML layout nahi), taake build mein resource errors na aayen.
  */
 class HomeActivity : AppCompatActivity() {
+
+    companion object {
+        const val EXTRA_MODEL = "extra_model"
+    }
 
     private lateinit var creds: RouterCredentialStore
     private lateinit var names: DeviceNameStore
@@ -78,6 +81,7 @@ class HomeActivity : AppCompatActivity() {
         creds = RouterCredentialStore(this)
         names = DeviceNameStore(this)
         tab = savedInstanceState?.getInt("tab") ?: 0
+        cachedModel = intent.getStringExtra(EXTRA_MODEL)
 
         root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
@@ -150,31 +154,7 @@ class HomeActivity : AppCompatActivity() {
         parent.addView(v, p)
     }
 
-    private fun cardBg(): Drawable {
-        val surface = ThemeManager.surface()
-        val acc = ThemeManager.accent()
-        val g = GradientDrawable()
-        g.cornerRadius = dpf(ThemeManager.radiusDp())
-        when (ThemeManager.style) {
-            1 -> { // One UI — glossy gradient
-                g.orientation = GradientDrawable.Orientation.TL_BR
-                g.colors = intArrayOf(ColorUtils.blendARGB(surface, acc, 0.22f), surface)
-            }
-            2 -> { // Ice — frosted / translucent
-                g.setColor(ColorUtils.setAlphaComponent(surface, 200))
-                g.setStroke(dp(1), ColorUtils.setAlphaComponent(Color.WHITE, 140))
-            }
-            3 -> { // Halo — glowing outline
-                g.setColor(surface)
-                g.setStroke(dp(2), ColorUtils.setAlphaComponent(acc, 150))
-            }
-            else -> { // Classic
-                g.setColor(surface)
-                g.setStroke(dp(1), ThemeManager.border())
-            }
-        }
-        return g
-    }
+    private fun cardBg(): Drawable = NgKit.cardBg(this)
 
     private fun card(pad: Int = 16): LinearLayout {
         val c = vcol()
@@ -202,14 +182,10 @@ class HomeActivity : AppCompatActivity() {
         return t
     }
 
-    private fun circleEmoji(emoji: String): TextView {
-        val t = tv(emoji, 18f, cText())
-        t.gravity = Gravity.CENTER
-        val g = GradientDrawable()
-        g.shape = GradientDrawable.OVAL
-        g.setColor(ColorUtils.setAlphaComponent(cAcc(), 38))
-        t.background = g
-        return t
+    private fun ic(icon: NgIcon, color: Int, sizeDp: Int, filled: Boolean = false): IconView {
+        val v = NgKit.icon(this, icon, color, filled)
+        v.layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
+        return v
     }
 
     private fun styleSwitch(sw: SwitchCompat) {
@@ -261,7 +237,7 @@ class HomeActivity : AppCompatActivity() {
         tb.addView(tv(title, 15f, if (danger) ThemeManager.danger() else cText(), true))
         tb.addView(tv(sub, 12f, cSub()))
         r.addView(tb, lp(0, WRAP, 1f))
-        r.addView(tv("›", 22f, cSub()))
+        r.addView(ic(NgIcon.CHEVRON, cSub(), 20))
         r.setOnClickListener { action() }
         return r
     }
@@ -285,22 +261,27 @@ class HomeActivity : AppCompatActivity() {
     // ---------------------------------------------------------------- chrome (status bar, bottom bar)
 
     private fun applyChrome() {
-        root.setBackgroundColor(ThemeManager.bg())
-        window.statusBarColor = ThemeManager.bg()
+        root.background = NgKit.screenBg()
+        NgKit.chrome(this)
         window.navigationBarColor = ThemeManager.bar()
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = !ThemeManager.dark
 
         bar.removeAllViews()
         bar.setBackgroundColor(ThemeManager.bar())
         bar.setPadding(dp(8), dp(6), dp(8), dp(6))
-        val items = listOf("🏠" to "Dashboard", "📱" to "Devices", "⚙️" to "Advanced", "🎨" to "Theme")
-        items.forEachIndexed { i, (emoji, label) ->
+        val items = listOf(
+            NgIcon.GRID to "Dashboard", NgIcon.DEVICES to "Devices",
+            NgIcon.GEAR to "Advanced", NgIcon.PALETTE to "Theme"
+        )
+        items.forEachIndexed { i, (navIcon, label) ->
             val sel = i == tab
             val item = vcol()
             item.gravity = Gravity.CENTER_HORIZONTAL
             item.setPadding(dp(4), dp(6), dp(4), dp(6))
-            item.addView(tv(emoji, 20f, cText()))
-            item.addView(tv(label, 11f, if (sel) cAcc() else cSub(), sel))
+            val navView = ic(navIcon, if (sel) cAcc() else cSub(), 24, sel)
+            item.addView(navView)
+            val navLabel = tv(label, 11f, if (sel) cAcc() else cSub(), sel)
+            navLabel.setPadding(0, dp(2), 0, 0)
+            item.addView(navLabel)
             if (sel) {
                 val g = GradientDrawable()
                 g.cornerRadius = dpf(18f)
@@ -337,21 +318,24 @@ class HomeActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- DASHBOARD
 
-    private class Tile(val key: String, val emoji: String, val title: String, val sub: String, val action: () -> Unit)
+    private class Tile(
+        val key: String, val icon: NgIcon, val tint: Int,
+        val title: String, val sub: String, val action: () -> Unit
+    )
 
     private fun tiles(): List<Tile> = listOf(
-        Tile("wan", "🌐", "WAN Status", "PPPoE & IP details") { startActivity(Intent(this, WanConfigActivity::class.java)) },
-        Tile("devices", "📱", "Devices", "$connectedCount connected") { showTab(1) },
-        Tile("optical", "💡", "Optical Info", "Laser power & temp") { startActivity(Intent(this, OpticalInfoActivity::class.java)) },
-        Tile("ports", "🔌", "Ethernet Ports", "Link status & speeds") { soon() },
-        Tile("devinfo", "🖥️", "Device Info", "CPU, RAM & Versions") { showDeviceInfo() },
-        Tile("usage", "📊", "Usage", "Traffic statistics") { startActivity(Intent(this, NetStatsActivity::class.java)) },
-        Tile("voip", "📞", "VoIP Status", "SIP line status") { soon() },
-        Tile("wifipass", "🔑", "Wi-Fi Password", "Change SSID & Key") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
-        Tile("guest", "👥", "Guest", "Guest WiFi & users") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
-        Tile("macfilter", "🛡️", "MAC Filter", "Allow/Block devices") { startActivity(Intent(this, MacFilterActivity::class.java)) },
-        Tile("parental", "👪", "Parental Control", "Templates & restrictions") { soon() },
-        Tile("blocknet", "🚫", "Block Internet", "without disconnect") { showTab(1) }
+        Tile("wan", NgIcon.GLOBE, Color.parseColor("#6D4FC2"), "WAN Status", "PPPoE & IP details") { startActivity(Intent(this, WanConfigActivity::class.java)) },
+        Tile("devices", NgIcon.DEVICES, Color.parseColor("#A0600F"), "Devices", "$connectedCount connected") { showTab(1) },
+        Tile("optical", NgIcon.SUN, Color.parseColor("#16A34A"), "Optical Info", "Laser power & temp") { startActivity(Intent(this, OpticalInfoActivity::class.java)) },
+        Tile("ports", NgIcon.NETWORK, Color.parseColor("#1E5BB8"), "Ethernet Ports", "Link status & speeds") { soon() },
+        Tile("devinfo", NgIcon.ROUTER, Color.parseColor("#A0600F"), "Device Info", "CPU, RAM & Versions") { showDeviceInfo() },
+        Tile("usage", NgIcon.USAGE, Color.parseColor("#1E78C8"), "Usage", "Traffic statistics") { startActivity(Intent(this, NetStatsActivity::class.java)) },
+        Tile("voip", NgIcon.HEADSET, Color.parseColor("#0F8A4B"), "VoIP Status", "SIP line status") { soon() },
+        Tile("wifipass", NgIcon.WIFI, Color.parseColor("#6D4FC2"), "Wi-Fi Password", "Change SSID & Key") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
+        Tile("guest", NgIcon.PEOPLE, Color.parseColor("#475569"), "Guest", "Guest WiFi & users") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
+        Tile("macfilter", NgIcon.SHIELD, Color.parseColor("#0F9D6E"), "MAC Filter", "Allow/Block devices") { startActivity(Intent(this, MacFilterActivity::class.java)) },
+        Tile("parental", NgIcon.FAMILY, Color.parseColor("#D13B3B"), "Parental Control", "Templates & restrictions") { soon() },
+        Tile("blocknet", NgIcon.BLOCK, Color.parseColor("#D13B3B"), "Block Internet", "without disconnect") { showTab(1) }
     )
 
     private fun buildDashboard(): View = scroller { col ->
@@ -361,44 +345,86 @@ class HomeActivity : AppCompatActivity() {
         val model = tv(cachedModel ?: "Router", 20f, cText(), true)
         dashModel = model
         titleBox.addView(model)
-        titleBox.addView(tv("● " + creds.getGateway(), 12f, cAcc()))
+        titleBox.addView(tv("● " + creds.getGateway(), 12f, cAcc(), true))
         head.addView(titleBox, lp(0, WRAP, 1f))
-        val moon = tv(if (ThemeManager.dark) "☀️" else "🌙", 22f, cText())
-        moon.setPadding(dp(10), dp(6), dp(10), dp(6))
+
+        val bell = FrameLayout(this)
+        bell.setPadding(dp(8), dp(8), dp(8), dp(8))
+        bell.addView(ic(NgIcon.BELL, cText(), 24, true))
+        bell.setOnClickListener { showTab(2) }
+        head.addView(bell)
+
+        val moon = FrameLayout(this)
+        moon.setPadding(dp(8), dp(8), dp(8), dp(8))
+        moon.addView(ic(if (ThemeManager.dark) NgIcon.SUN else NgIcon.MOON, cText(), 24, !ThemeManager.dark))
         moon.setOnClickListener { setDark(!ThemeManager.dark) }
         head.addView(moon)
-        val out = tv("🚪", 22f, cText())
-        out.setPadding(dp(10), dp(6), dp(6), dp(6))
+
+        val out = FrameLayout(this)
+        out.setPadding(dp(8), dp(8), dp(4), dp(8))
+        out.addView(ic(NgIcon.LOGOUT, cText(), 24))
         out.setOnClickListener { logout() }
         head.addView(out)
         add(col, head, bottom = 12)
 
-        // hero card
-        val hero = card(18)
+        // hero card (accent gradient, white text)
+        val white = Color.WHITE
+        val soft = ColorUtils.setAlphaComponent(Color.WHITE, 190)
+        val hero = vcol()
+        hero.setPadding(dp(20), dp(18), dp(20), dp(16))
+        hero.background = NgKit.heroBg(this)
+        hero.elevation = if (ThemeManager.effect3d) dpf(10f) else dpf(3f)
+
         val top = hrow()
         val heroTitle = vcol()
-        heroTitle.addView(tv(cachedModel ?: "Router", 20f, cText(), true))
-        heroTitle.addView(tv(creds.getGateway() + " · connected", 12f, cSub()))
+        heroTitle.addView(tv(cachedModel ?: "Router", 22f, white, true))
+        heroTitle.addView(tv(creds.getGateway() + " · connected", 12f, soft))
         top.addView(heroTitle, lp(0, WRAP, 1f))
-        val status = pill(if (cachedModel == null) "Loading" else "ONLINE", cAcc())
+        val status = tv(if (cachedModel == null) "Loading" else "ONLINE", 12f, white, true)
+        status.setPadding(dp(14), dp(7), dp(14), dp(7))
+        val sg = GradientDrawable()
+        sg.cornerRadius = dpf(30f)
+        sg.setColor(ColorUtils.setAlphaComponent(Color.WHITE, 50))
+        sg.setStroke(dp(1), ColorUtils.setAlphaComponent(Color.WHITE, 170))
+        status.background = sg
         dashStatus = status
         top.addView(status)
         hero.addView(top)
 
-        val glow = tv("📶", 54f, cAcc())
-        glow.gravity = Gravity.CENTER
-        glow.setPadding(0, dp(10), 0, dp(10))
-        hero.addView(glow, lp(MATCH, WRAP))
+        val art = RouterArt(this)
+        hero.addView(art, lp(MATCH, dp(130)))
 
-        val cpu = tv("CPU: " + (cachedCpu?.let { "$it%" } ?: "—"), 12f, cSub(), true)
-        dashCpu = cpu
-        hero.addView(cpu)
-        hero.addView(divider(), lp(MATCH, dp(1)).also { it.topMargin = dp(10); it.bottomMargin = dp(6) })
+        val stats = hrow()
+        stats.weightSum = 3f
+        fun stat(label: String, value: String, holder: Boolean): LinearLayout {
+            val b = vcol()
+            b.addView(tv(label, 12f, soft))
+            val v = tv(value, 18f, white, true)
+            if (holder) dashCpu = v
+            b.addView(v)
+            return b
+        }
+        stats.addView(stat("Devices", connectedCount.toString(), false), lp(0, WRAP, 1f))
+        stats.addView(stat("CPU", cachedCpu?.let { "$it%" } ?: "—", true), lp(0, WRAP, 1f))
+        stats.addView(stat("Gateway", creds.getGateway(), false), lp(0, WRAP, 1f))
+        hero.addView(stats)
+
+        val line = View(this)
+        line.setBackgroundColor(ColorUtils.setAlphaComponent(Color.WHITE, 70))
+        hero.addView(line, lp(MATCH, dp(1)).also { it.topMargin = dp(14); it.bottomMargin = dp(10) })
 
         val guestRow = hrow()
-        guestRow.addView(tv("📡  Guest WiFi", 14f, cText(), true), lp(0, WRAP, 1f))
+        guestRow.addView(ic(NgIcon.WIFI, white, 22))
+        val gl = tv("Guest WiFi", 15f, white, true)
+        gl.setPadding(dp(12), 0, 0, 0)
+        guestRow.addView(gl, lp(0, WRAP, 1f))
         val sw = SwitchCompat(this)
-        styleSwitch(sw)
+        val swStates = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
+        sw.thumbTintList = ColorStateList(swStates, intArrayOf(white, Color.parseColor("#E2E8F0")))
+        sw.trackTintList = ColorStateList(
+            swStates,
+            intArrayOf(ColorUtils.setAlphaComponent(Color.WHITE, 150), ColorUtils.setAlphaComponent(Color.BLACK, 70))
+        )
         sw.setOnClickListener {
             val on = sw.isChecked
             val ssid = creds.getGuestSsid()
@@ -425,7 +451,7 @@ class HomeActivity : AppCompatActivity() {
         }
         guestRow.addView(sw)
         hero.addView(guestRow)
-        add(col, hero, bottom = 16)
+        add(col, hero, bottom = 18)
 
         // tiles
         add(col, section("Stats & Diagnostics"), bottom = 0)
@@ -439,8 +465,10 @@ class HomeActivity : AppCompatActivity() {
                 if (idx < enabled.size) {
                     val t = enabled[idx]
                     val tc = card(14)
-                    tc.addView(tv(t.emoji, 22f, cText()))
-                    tc.addView(tv(t.title, 15f, cText(), true))
+                    tc.addView(ic(t.icon, t.tint, 28))
+                    val tt = tv(t.title, 15f, cText(), true)
+                    tt.setPadding(0, dp(8), 0, 0)
+                    tc.addView(tt)
                     val sub = tv(t.sub, 12f, cSub())
                     if (t.key == "devices") dashDevicesSub = sub
                     tc.addView(sub)
@@ -485,7 +513,7 @@ class HomeActivity : AppCompatActivity() {
             cachedCpu = cpu
             connectedCount = devs.size
             dashModel?.text = cachedModel ?: "Router"
-            dashCpu?.text = "CPU: " + (cpu?.let { "$it%" } ?: "—")
+            dashCpu?.text = cpu?.let { "$it%" } ?: "—"
             dashStatus?.text = if (cachedModel == null) "Loading" else "ONLINE"
             dashDevicesSub?.text = "$connectedCount connected"
         }
@@ -538,8 +566,9 @@ class HomeActivity : AppCompatActivity() {
     private fun buildDevices(): View = scroller { col ->
         val head = hrow()
         head.addView(tv("Connected Devices", 22f, cText(), true), lp(0, WRAP, 1f))
-        val refresh = tv("🔄", 22f, cText())
-        refresh.setPadding(dp(10), dp(6), dp(6), dp(6))
+        val refresh = FrameLayout(this)
+        refresh.setPadding(dp(8), dp(8), dp(4), dp(8))
+        refresh.addView(ic(NgIcon.REFRESH, cText(), 24))
         refresh.setOnClickListener { loadDevices() }
         head.addView(refresh)
         add(col, head, bottom = 12)
@@ -562,7 +591,7 @@ class HomeActivity : AppCompatActivity() {
         add(col, summary, bottom = 12)
 
         val hint = card(12)
-        hint.addView(tv("✎ dabao device ka naam badalne ke liye. Block Internet se device poori tarah block ho jata hai.", 12f, cSub()))
+        hint.addView(tv("Pencil dabao device ka naam badalne ke liye. Block Internet se device poori tarah block ho jata hai.", 12f, cSub()))
         add(col, hint, bottom = 12)
 
         val box = vcol()
@@ -610,8 +639,9 @@ class HomeActivity : AppCompatActivity() {
 
         val top = hrow()
         top.addView(tv(shown, 16f, cText(), true))
-        val edit = tv("✎", 16f, cAcc(), true)
+        val edit = FrameLayout(this)
         edit.setPadding(dp(10), dp(4), dp(10), dp(4))
+        edit.addView(ic(NgIcon.EDIT, cAcc(), 18))
         edit.setOnClickListener { rename(d, shown) }
         top.addView(edit)
         top.addView(View(this), lp(0, 1, 1f))
