@@ -18,7 +18,7 @@ import androidx.core.view.WindowCompat
 enum class NgIcon {
     ROUTER, GLOBE, DEVICES, SUN, NETWORK, USAGE, HEADSET, WIFI, PEOPLE, FAMILY, SHIELD, BLOCK,
     GRID, GEAR, PALETTE, BELL, MOON, LOGOUT, REFRESH, USER, LOCK, EYE, EYE_OFF, FINGERPRINT,
-    SEARCH, RADAR, CPU, ARROW_IN, CHEVRON, CHECK, EDIT, POWER
+    SEARCH, RADAR, CPU, ARROW_IN, CHEVRON, CHECK, EDIT, POWER, BACK, TRASH
 }
 
 class IconView(context: Context) : View(context) {
@@ -281,6 +281,17 @@ class IconView(context: Context) : View(context) {
             NgIcon.CHEVRON -> poly(c, 9f, 6f, 15f, 12f, 9f, 18f)
             NgIcon.CHECK -> poly(c, 5f, 12.5f, 10f, 17.5f, 19f, 7f)
             NgIcon.EDIT -> poly(c, 4f, 20f, 8f, 19f, 19f, 8f, 16f, 5f, 5f, 16f, 4f, 20f)
+            NgIcon.BACK -> {
+                c.drawLine(19f, 12f, 5f, 12f, p)
+                poly(c, 11f, 6f, 5f, 12f, 11f, 18f)
+            }
+            NgIcon.TRASH -> {
+                c.drawLine(4f, 7f, 20f, 7f, p)
+                rr(c, 6f, 7f, 18f, 21f, 2f)
+                poly(c, 9f, 7f, 9f, 4f, 15f, 4f, 15f, 7f)
+                c.drawLine(10f, 11f, 10f, 17f, p)
+                c.drawLine(14f, 11f, 14f, 17f, p)
+            }
             NgIcon.POWER -> {
                 arc(c, 12f, 12.5f, 8f, -60f, 300f)
                 c.drawLine(12f, 3f, 12f, 12f, p)

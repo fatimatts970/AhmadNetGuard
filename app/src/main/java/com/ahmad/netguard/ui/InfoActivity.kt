@@ -118,7 +118,7 @@ class InfoActivity : NgScreen() {
         col.removeAllViews()
         raws.clear()
         val loading = card(18)
-        loading.addView(tv("Router se load ho raha hai…", 14f, cSub()))
+        loading.addView(tv("Loading from router…", 14f, cSub()))
         add(col, loading)
 
         lifecycleScope.launch {
@@ -138,8 +138,8 @@ class InfoActivity : NgScreen() {
                 add(col, section(label), bottom = 0)
                 if (!ok || r == null) {
                     val c = card(16)
-                    c.addView(tv("Is router par yeh page nahi mila ya session khatam ho gaya.", 14f, cText(), true))
-                    c.addView(tv("Dobara login karke refresh karo.", 12f, cSub()))
+                    c.addView(tv("This page was not found on your router, or the session expired.", 14f, cText(), true))
+                    c.addView(tv("Log in again and pull down to refresh.", 12f, cSub()))
                     add(col, c)
                     continue
                 }
@@ -149,15 +149,16 @@ class InfoActivity : NgScreen() {
 
             // note + raw button
             val note = card(14)
-            note.addView(tv("Yeh screen abhi sirf dikhane ke liye hai (edit/save nahi). Fields router ke page se nikaale gaye hain.", 12f, cSub()))
+            note.addView(tv("This screen is read-only for now. Values are read directly from your router pages.", 12f, cSub()))
             if (raws.isNotEmpty()) {
-                val btn = pill("Raw data dekho / copy karo", cAcc())
+                val btn = pill("View / copy raw data", cAcc())
                 btn.setOnClickListener { showRaw() }
                 val p = LinearLayout.LayoutParams(wrapP, wrapP)
                 p.topMargin = dp(10)
                 note.addView(btn, p)
             }
             add(col, note, bottom = 0)
+            pull.done()
         }
     }
 
@@ -297,8 +298,8 @@ class InfoActivity : NgScreen() {
         }
 
         if (c.childCount == 0) {
-            c.addView(tv("Page mila (${r.path}) lekin is router par fields parse nahi hue.", 13f, cText(), true))
-            c.addView(tv("Neeche 'Raw data' dabao aur mujhe bhejo — main exact parse laga dunga.", 12f, cSub()))
+            c.addView(tv("Page found (${r.path}) but its fields could not be parsed on this router.", 13f, cText(), true))
+            c.addView(tv("Tap 'View / copy raw data' below and share it so the parser can be fixed.", 12f, cSub()))
         }
         return c
     }
@@ -324,20 +325,20 @@ class InfoActivity : NgScreen() {
 
         AlertDialog.Builder(this)
             .setTitle("Raw — " + kind.title)
-            .setMessage("Dhyan: raw mein aapke router ki details (IP, MAC, kabhi kabhi PPPoE naam) ho sakti hain. Share karne se pehle dekh lo.")
+            .setMessage("Note: raw data may contain your router details (IP, MAC, sometimes the PPPoE name). Review it before sharing.")
             .setView(sv)
             .setPositiveButton("Copy") { _, _ ->
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("raw", full.take(60000)))
-                toast("Copy ho gaya")
+                toast("Copied")
             }
             .setNeutralButton("Share") { _, _ ->
                 val i = Intent(Intent.ACTION_SEND)
                 i.type = "text/plain"
                 i.putExtra(Intent.EXTRA_TEXT, full.take(60000))
-                startActivity(Intent.createChooser(i, "Raw data bhejo"))
+                startActivity(Intent.createChooser(i, "Share raw data"))
             }
-            .setNegativeButton("Band", null)
+            .setNegativeButton("Close", null)
             .show()
     }
 }

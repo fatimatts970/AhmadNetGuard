@@ -76,7 +76,7 @@ class LogsActivity : AppCompatActivity() {
 
             val formatter = SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault())
             val content = buildString {
-                appendLine("AHMAD NetGuard — Activity Log Export")
+                appendLine("AHMAD WiFi Manager — Activity Log Export")
                 appendLine("Exported: ${formatter.format(Date())}")
                 appendLine("=".repeat(40))
                 for (log in logs) {

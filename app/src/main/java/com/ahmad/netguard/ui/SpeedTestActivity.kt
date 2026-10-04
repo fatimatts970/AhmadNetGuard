@@ -44,7 +44,11 @@ class SpeedTestActivity : NgScreen() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setupScreen("Speed Test") { loadInfo(); loadStatus() }
+        setupScreen("Speed Test") {
+            loadInfo()
+            loadStatus()
+            pull.postDelayed({ pull.done() }, 1200)
+        }
 
         // gauges
         val g = card(18)
@@ -73,7 +77,7 @@ class SpeedTestActivity : NgScreen() {
         tvPing.gravity = Gravity.CENTER
         tvPing.setPadding(0, dp(14), 0, 0)
         g.addView(tvPing, LinearLayout.LayoutParams(matchP, wrapP))
-        tvPhase = tv("Tayyar", 12f, cSub())
+        tvPhase = tv("Ready", 12f, cSub())
         tvPhase.gravity = Gravity.CENTER
         tvPhase.setPadding(0, dp(4), 0, 0)
         g.addView(tvPhase, LinearLayout.LayoutParams(matchP, wrapP))
@@ -115,7 +119,7 @@ class SpeedTestActivity : NgScreen() {
         tvPing.text = "Ping —"
         testJob = lifecycleScope.launch {
             try {
-                tvPhase.text = "Ping naap rahe hain…"
+                tvPhase.text = "Measuring ping…"
                 val ping = measurePing()
                 if (ping != null) tvPing.text = "Ping %.0f ms · Jitter %.0f ms".format(ping.first, ping.second)
 
@@ -127,9 +131,9 @@ class SpeedTestActivity : NgScreen() {
                 val up = measureUp { mbps -> tvUp.text = "%.1f".format(mbps) }
                 tvUp.text = "%.1f".format(up)
 
-                tvPhase.text = "Mukammal"
+                tvPhase.text = "Completed"
             } catch (e: Exception) {
-                tvPhase.text = if (isActive) "Test fail hua — internet check karo" else "Roka gaya"
+                tvPhase.text = if (isActive) "Test failed — check your internet" else "Stopped"
             } finally {
                 btn.text = "Start Speed Test"
             }
@@ -244,7 +248,7 @@ class SpeedTestActivity : NgScreen() {
 
     private fun loadInfo() {
         infoBox.removeAllViews()
-        infoBox.addView(tv("Load ho raha hai…", 13f, cSub()))
+        infoBox.addView(tv("Loading…", 13f, cSub()))
         lifecycleScope.launch {
             val meta: JSONObject? = withContext(Dispatchers.IO) {
                 try {
@@ -256,7 +260,7 @@ class SpeedTestActivity : NgScreen() {
             }
             infoBox.removeAllViews()
             if (meta == null) {
-                infoBox.addView(tv("Internet info nahi mili", 13f, cSub()))
+                infoBox.addView(tv("Internet info unavailable", 13f, cSub()))
                 return@launch
             }
             fun v(key: String): String = meta.optString(key, "")
@@ -287,7 +291,7 @@ class SpeedTestActivity : NgScreen() {
 
     private fun loadStatus() {
         statusBox.removeAllViews()
-        statusBox.addView(tv("Check ho raha hai…", 13f, cSub()))
+        statusBox.addView(tv("Checking…", 13f, cSub()))
         lifecycleScope.launch {
             val results: List<Pair<String, String>> = withContext(Dispatchers.IO) {
                 coroutineScope {

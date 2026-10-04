@@ -42,7 +42,7 @@ class PowerChartView(context: Context) : View(context) {
             p.color = textColor
             p.textSize = 12f * d
             p.textAlign = Paint.Align.CENTER
-            canvas.drawText("History jama ho rahi hai…", w / 2f, h / 2f, p)
+            canvas.drawText("Collecting history…", w / 2f, h / 2f, p)
             return
         }
 
@@ -132,7 +132,7 @@ class OpticalActivity : NgScreen() {
     private fun load() {
         col.removeAllViews()
         val loading = card(18)
-        loading.addView(tv("Optical info load ho rahi hai…", 14f, cSub()))
+        loading.addView(tv("Loading optical info…", 14f, cSub()))
         add(col, loading)
 
         lifecycleScope.launch {
@@ -145,9 +145,10 @@ class OpticalActivity : NgScreen() {
 
             if (info == null) {
                 val c = card(18)
-                c.addView(tv("Optical information nahi mili", 15f, cText(), true))
-                c.addView(tv("Router se signal data fetch nahi hua. Refresh karke dekho.", 12f, cSub()))
+                c.addView(tv("Optical information unavailable", 15f, cText(), true))
+                c.addView(tv("Could not read signal data from the router. Pull down to retry.", 12f, cSub()))
                 add(col, c)
+                pull.done()
                 return@launch
             }
 
@@ -220,6 +221,7 @@ class OpticalActivity : NgScreen() {
             mod.addView(divider())
             mod.addView(kvRow("RX wavelength", info.rxWaveLengthNm))
             add(col, mod, bottom = 0)
+            pull.done()
         }
     }
 }

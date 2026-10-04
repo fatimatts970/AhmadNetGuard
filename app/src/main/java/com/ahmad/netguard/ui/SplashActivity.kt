@@ -61,10 +61,10 @@ class SplashActivity : AppCompatActivity() {
             return t
         }
 
-        label("Welcome to,", 16f, ThemeManager.sub(), false, 32)
-        label("𓆩 AHMAD RAHMANI 𓆪", 26f, ThemeManager.text(), true, 6)
-        label("Huawei Router Manager", 18f, acc, true, 10)
-        label("Take Full Control of your Huawei router", 14f, ThemeManager.sub(), false, 4)
+        label("Welcome to", 16f, ThemeManager.sub(), false, 32)
+        label("AHMAD WiFi Manager", 28f, ThemeManager.text(), true, 6)
+        label("𓆩 AHMAD RAHMANI 𓆪", 16f, acc, true, 10)
+        label("Take full control of your Huawei router", 14f, ThemeManager.sub(), false, 6)
 
         root.addView(android.view.View(this), LinearLayout.LayoutParams(0, 0, 1f))
         val ver = label("v1.0", 12f, ThemeManager.sub(), false, 0)

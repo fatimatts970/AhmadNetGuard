@@ -22,6 +22,7 @@ import androidx.core.graphics.ColorUtils
 abstract class NgScreen : AppCompatActivity() {
 
     protected lateinit var col: LinearLayout
+    protected lateinit var pull: PullRefreshLayout
     private lateinit var rootView: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,12 +136,21 @@ abstract class NgScreen : AppCompatActivity() {
         val head = hrow()
         head.setPadding(dp(8), dp(10), dp(12), dp(6))
         val back = FrameLayout(this)
-        back.setPadding(dp(10), dp(10), dp(10), dp(10))
-        val bi = ic(NgIcon.CHEVRON, cText(), 24)
-        bi.rotation = 180f
-        back.addView(bi)
+        back.setPadding(dp(8), dp(8), dp(8), dp(8))
+        val backBg = GradientDrawable()
+        backBg.shape = GradientDrawable.OVAL
+        backBg.setColor(ColorUtils.setAlphaComponent(cAcc(), 40))
+        val backInner = FrameLayout(this)
+        backInner.background = backBg
+        val bi = ic(NgIcon.BACK, cAcc(), 22)
+        val bil = FrameLayout.LayoutParams(dp(22), dp(22))
+        bil.gravity = Gravity.CENTER
+        backInner.addView(bi, bil)
+        back.addView(backInner, FrameLayout.LayoutParams(dp(40), dp(40)))
         back.setOnClickListener { finish() }
         head.addView(back)
+        val spacer = View(this)
+        head.addView(spacer, LinearLayout.LayoutParams(dp(6), 1))
         head.addView(tv(title, 20f, cText(), true), LinearLayout.LayoutParams(0, wrapP, 1f))
         if (onRefresh != null) {
             val rf = FrameLayout(this)
@@ -151,12 +161,12 @@ abstract class NgScreen : AppCompatActivity() {
         }
         rootView.addView(head, LinearLayout.LayoutParams(matchP, wrapP))
 
-        val sv = ScrollView(this)
-        sv.clipToPadding = false
+        pull = PullRefreshLayout(this)
+        pull.onRefresh = onRefresh
         col = vcol()
         col.setPadding(dp(16), dp(8), dp(16), dp(28))
-        sv.addView(col, FrameLayout.LayoutParams(matchP, wrapP))
-        rootView.addView(sv, LinearLayout.LayoutParams(matchP, 0, 1f))
+        pull.scroll.addView(col, FrameLayout.LayoutParams(matchP, wrapP))
+        rootView.addView(pull, LinearLayout.LayoutParams(matchP, 0, 1f))
         setContentView(rootView)
     }
 }

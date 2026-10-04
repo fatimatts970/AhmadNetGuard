@@ -81,7 +81,7 @@ class LoginActivity : AppCompatActivity() {
         logo.addView(NgKit.icon(this, NgIcon.ROUTER, Color.WHITE), LinearLayout.LayoutParams(dp(46), dp(46)))
         col.addView(logo, LinearLayout.LayoutParams(dp(84), dp(84)))
 
-        col.addView(text("AHMAD NetGuard", 28f, ThemeManager.text(), true).also { it.gravity = Gravity.CENTER }, lpWrap(top = 14))
+        col.addView(text("AHMAD WiFi Manager", 28f, ThemeManager.text(), true).also { it.gravity = Gravity.CENTER }, lpWrap(top = 14))
         col.addView(text("Sign in to manage your router", 14f, ThemeManager.sub(), false).also { it.gravity = Gravity.CENTER }, lpWrap(top = 2, bottom = 22))
 
         // card
@@ -330,7 +330,7 @@ class LoginActivity : AppCompatActivity() {
             inputIp.setText(ip)
             scanBox.addView(routerChip("Gateway", ip), lpFull(bottom = 8))
         } else {
-            scanBox.addView(text("WiFi se connected nahi — gateway nahi mila", 13f, ThemeManager.sub(), false), lpWrap())
+            scanBox.addView(text("Not connected to WiFi — gateway not found", 13f, ThemeManager.sub(), false), lpWrap())
         }
     }
 
@@ -348,7 +348,7 @@ class LoginActivity : AppCompatActivity() {
             }
             scanBox.removeAllViews()
             if (found.isEmpty()) {
-                scanBox.addView(text("Koi modem nahi mila — IP khud likho", 13f, ThemeManager.sub(), false), lpWrap())
+                scanBox.addView(text("No modem found — enter the IP manually", 13f, ThemeManager.sub(), false), lpWrap())
             } else {
                 for (ip in found) scanBox.addView(routerChip("Router found", ip), lpFull(bottom = 8))
             }

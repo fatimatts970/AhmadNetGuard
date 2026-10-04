@@ -34,7 +34,7 @@ object BiometricHelper {
 
         val biometricPrompt = BiometricPrompt(activity, executor, callback)
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock AHMAD NetGuard")
+            .setTitle("Unlock AHMAD WiFi Manager")
             .setSubtitle("Use your fingerprint to open the app")
             .setNegativeButtonText("Cancel")
             .build()

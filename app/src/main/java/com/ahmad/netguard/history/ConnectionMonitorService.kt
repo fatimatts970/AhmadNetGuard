@@ -33,7 +33,7 @@ class ConnectionMonitorService : Service() {
         createNotificationChannel()
         val persistentNotification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
-            .setContentTitle("AHMAD NetGuard")
+            .setContentTitle("AHMAD WiFi Manager")
             .setContentText("Monitoring your WiFi network")
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
