@@ -9,8 +9,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
-import okio.BufferedSink
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
@@ -96,32 +95,30 @@ object QuickSpeed {
         }
     }
 
+    /**
+     * Real upload: sirf woh bytes gine jaate hain jinka request poora hokar server ka jawab aa chuka ho.
+     * (Pehle socket buffer mein likhe bytes gine jaate the, isliye speed zyada dikhti thi.)
+     */
     private suspend fun measureUp(seconds: Double): Double? = withContext(Dispatchers.IO) {
         coroutineScope {
-            val bytes = AtomicLong(0)
+            val done = AtomicLong(0)
+            val lastDone = AtomicLong(0)
             val start = System.nanoTime()
             val deadline = start + (seconds * 1e9).toLong()
-            val chunk = ByteArray(32 * 1024)
+            val payload = ByteArray(4 * 1024 * 1024)
             val workers = (1..3).map {
                 async(Dispatchers.IO) {
+                    var size = 256 * 1024
                     while (isActive && System.nanoTime() < deadline) {
                         try {
-                            val body = object : RequestBody() {
-                                override fun contentType() = "application/octet-stream".toMediaType()
-                                override fun contentLength(): Long = 2L * 1024 * 1024
-                                override fun writeTo(sink: BufferedSink) {
-                                    var left = contentLength()
-                                    while (left > 0 && System.nanoTime() < deadline) {
-                                        val n = minOf(left, chunk.size.toLong()).toInt()
-                                        sink.write(chunk, 0, n)
-                                        sink.flush()
-                                        bytes.addAndGet(n.toLong())
-                                        left -= n
-                                    }
-                                }
-                            }
+                            val body = payload.toRequestBody("application/octet-stream".toMediaType(), 0, size)
+                            val t0 = System.nanoTime()
                             val req = Request.Builder().url("https://speed.cloudflare.com/__up").post(body).build()
                             client.newCall(req).execute().use { it.body?.bytes() }
+                            val t1 = System.nanoTime()
+                            done.addAndGet(size.toLong())
+                            lastDone.accumulateAndGet(t1) { a, b -> maxOf(a, b) }
+                            if (t1 - t0 < 400_000_000L && size < 4 * 1024 * 1024) size *= 2
                         } catch (e: Exception) {
                             break
                         }
@@ -129,8 +126,8 @@ object QuickSpeed {
                 }
             }
             workers.awaitAll()
-            val el = (System.nanoTime() - start) / 1e9
-            if (el <= 0 || bytes.get() == 0L) null else bytes.get() * 8.0 / el / 1e6
+            val el = (lastDone.get() - start) / 1e9
+            if (el <= 0 || done.get() == 0L) null else done.get() * 8.0 / el / 1e6
         }
     }
 }

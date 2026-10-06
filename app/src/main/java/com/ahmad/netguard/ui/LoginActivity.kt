@@ -443,6 +443,7 @@ class LoginActivity : AppCompatActivity() {
 
             if (success) {
                 credStore.saveCredentials(gateway, username, pass)
+                SessionKeeper.init(this@LoginActivity)
                 credStore.setRememberMe(checkRemember.isChecked)
 
                 com.ahmad.netguard.history.AppDatabase.getInstance(this@LoginActivity).appLogDao().insert(

@@ -19,8 +19,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
-import okio.BufferedSink
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -198,40 +197,35 @@ class SpeedTestActivity : NgScreen() {
         if (el <= 0) 0.0 else bytes.get() * 8.0 / el / 1e6
     }
 
+    /** Real upload: sirf poore hue requests ke bytes (server ke jawab ke baad) gine jaate hain. */
     private suspend fun measureUp(onProgress: (Double) -> Unit): Double = coroutineScope {
-        val bytes = AtomicLong(0)
+        val done = AtomicLong(0)
+        val lastDone = AtomicLong(0)
         val seconds = 6.0
         val start = System.nanoTime()
         val deadline = start + (seconds * 1e9).toLong()
+        val payload = ByteArray(4 * 1024 * 1024)
 
         val ticker = launch {
             while (isActive) {
                 delay(300)
                 val el = (System.nanoTime() - start) / 1e9
-                if (el > 0.5) onProgress(bytes.get() * 8.0 / el / 1e6)
+                if (el > 0.5) onProgress(done.get() * 8.0 / el / 1e6)
             }
         }
-        val chunk = ByteArray(32 * 1024)
         val workers = (1..3).map {
             async(Dispatchers.IO) {
+                var size = 256 * 1024
                 while (isActive && System.nanoTime() < deadline) {
                     try {
-                        val body = object : RequestBody() {
-                            override fun contentType() = "application/octet-stream".toMediaType()
-                            override fun contentLength(): Long = 2L * 1024 * 1024
-                            override fun writeTo(sink: BufferedSink) {
-                                var left = contentLength()
-                                while (left > 0 && System.nanoTime() < deadline) {
-                                    val n = minOf(left, chunk.size.toLong()).toInt()
-                                    sink.write(chunk, 0, n)
-                                    sink.flush()
-                                    bytes.addAndGet(n.toLong())
-                                    left -= n
-                                }
-                            }
-                        }
+                        val body = payload.toRequestBody("application/octet-stream".toMediaType(), 0, size)
+                        val t0 = System.nanoTime()
                         val req = Request.Builder().url("https://speed.cloudflare.com/__up").post(body).build()
                         client.newCall(req).execute().use { it.body?.bytes() }
+                        val t1 = System.nanoTime()
+                        done.addAndGet(size.toLong())
+                        lastDone.accumulateAndGet(t1) { a, b -> maxOf(a, b) }
+                        if (t1 - t0 < 400_000_000L && size < 4 * 1024 * 1024) size *= 2
                     } catch (e: Exception) {
                         break
                     }
@@ -240,8 +234,8 @@ class SpeedTestActivity : NgScreen() {
         }
         workers.awaitAll()
         ticker.cancel()
-        val el = (System.nanoTime() - start) / 1e9
-        if (el <= 0) 0.0 else bytes.get() * 8.0 / el / 1e6
+        val el = (lastDone.get() - start) / 1e9
+        if (el <= 0 || done.get() == 0L) 0.0 else done.get() * 8.0 / el / 1e6
     }
 
     // ------------------------------------------------------------ device info
@@ -250,29 +244,69 @@ class SpeedTestActivity : NgScreen() {
         infoBox.removeAllViews()
         infoBox.addView(tv("Loading…", 13f, cSub()))
         lifecycleScope.launch {
-            val meta: JSONObject? = withContext(Dispatchers.IO) {
-                try {
-                    val req = Request.Builder().url("https://speed.cloudflare.com/meta").build()
-                    client.newCall(req).execute().use { r -> r.body?.string()?.let { JSONObject(it) } }
+            val info: Map<String, String> = withContext(Dispatchers.IO) {
+                val m = LinkedHashMap<String, String>()
+                fun get(url: String): String? = try {
+                    client.newCall(Request.Builder().url(url).build()).execute().use { r ->
+                        if (r.isSuccessful) r.body?.string() else null
+                    }
                 } catch (e: Exception) {
                     null
                 }
+                // 1) Cloudflare meta
+                try {
+                    val j = JSONObject(get("https://speed.cloudflare.com/meta") ?: "{}")
+                    m["ip"] = j.optString("clientIp", "")
+                    m["isp"] = j.optString("asOrganization", "")
+                    m["city"] = j.optString("city", "")
+                    m["region"] = j.optString("region", "")
+                    m["country"] = j.optString("country", "")
+                    m["colo"] = j.optString("colo", "")
+                } catch (e: Exception) {
+                }
+                // 2) Cloudflare trace (ip / country / colo)
+                if (m["ip"].isNullOrBlank()) {
+                    val t = get("https://speed.cloudflare.com/cdn-cgi/trace") ?: get("https://www.cloudflare.com/cdn-cgi/trace")
+                    t?.lines()?.forEach { line ->
+                        val p = line.split("=", limit = 2)
+                        if (p.size == 2) when (p[0]) {
+                            "ip" -> m["ip"] = p[1]
+                            "loc" -> if (m["country"].isNullOrBlank()) m["country"] = p[1]
+                            "colo" -> if (m["colo"].isNullOrBlank()) m["colo"] = p[1]
+                        }
+                    }
+                }
+                // 3) ISP / region from a public lookup
+                if (m["isp"].isNullOrBlank() || m["region"].isNullOrBlank()) {
+                    try {
+                        val j = JSONObject(get("https://ipwho.is/") ?: "{}")
+                        if (j.optBoolean("success", false)) {
+                            if (m["ip"].isNullOrBlank()) m["ip"] = j.optString("ip", "")
+                            m["isp"] = j.optJSONObject("connection")?.optString("isp", "") ?: ""
+                            if (m["city"].isNullOrBlank()) m["city"] = j.optString("city", "")
+                            if (m["region"].isNullOrBlank()) m["region"] = j.optString("region", "")
+                            if (m["country"].isNullOrBlank()) m["country"] = j.optString("country_code", "")
+                        }
+                    } catch (e: Exception) {
+                    }
+                }
+                m
             }
             infoBox.removeAllViews()
-            if (meta == null) {
-                infoBox.addView(tv("Internet info unavailable", 13f, cSub()))
+            fun v(key: String): String = info[key] ?: ""
+            if (v("ip").isBlank() && v("country").isBlank()) {
+                infoBox.addView(tv("Internet info unavailable right now", 13f, cSub()))
                 return@launch
             }
-            fun v(key: String): String = meta.optString(key, "")
-            infoBox.addView(kvRow("IP Address", v("clientIp")))
+            infoBox.addView(kvRow("IP Address", v("ip")))
             infoBox.addView(divider())
-            infoBox.addView(kvRow("ISP", v("asOrganization")))
+            infoBox.addView(kvRow("ISP", v("isp")))
             infoBox.addView(divider())
             infoBox.addView(kvRow("Region", listOf(v("city"), v("region")).filter { it.isNotBlank() }.joinToString(", ")))
             infoBox.addView(divider())
             infoBox.addView(kvRow("Country", v("country")))
             infoBox.addView(divider())
-            infoBox.addView(kvRow("Server", "Cloudflare " + v("colo")))
+            infoBox.addView(kvRow("Server", ("Cloudflare " + v("colo")).trim()))
         }
     }
 

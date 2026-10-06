@@ -14,6 +14,9 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.network.PageReader
+import com.ahmad.netguard.network.RouterAdapterFactory
+import com.ahmad.netguard.network.RouterCredentialStore
+import com.ahmad.netguard.model.Device
 import kotlinx.coroutines.launch
 
 /** Router ke woh pages jo sirf padhne ke liye dikhaye jate hain. */
@@ -141,16 +144,19 @@ class InfoActivity : NgScreen() {
             col.removeAllViews()
 
             if (kind == InfoKind.DEVICE) {
-                val first = results.firstOrNull()?.second
-                if (first != null) add(col, deviceHero(first))
+                add(col, liveRouterCard(results.firstOrNull()?.second))
             }
 
             for ((label, r, ok) in results) {
                 add(col, section(label), bottom = 0)
                 if (!ok || r == null) {
                     val c = card(16)
-                    c.addView(tv("This page was not found on your router, or the session expired.", 14f, cText(), true))
-                    c.addView(tv("Log in again and pull down to refresh.", 12f, cSub()))
+                    c.addView(tv("This page could not be read from your router.", 14f, cText(), true))
+                    val tried = kind.sections.firstOrNull { it.first == label }?.second?.joinToString("\n") ?: ""
+                    val tt = tv("Tried:\n$tried", 11f, cSub())
+                    tt.setPadding(0, dp(6), 0, 0)
+                    c.addView(tt)
+                    c.addView(tv("Pull down to retry. If it keeps failing, this model uses a different page address.", 12f, cSub()))
                     add(col, c)
                     continue
                 }
@@ -175,16 +181,54 @@ class InfoActivity : NgScreen() {
 
     // ------------------------------------------------------------ rendering
 
-    private fun deviceHero(r: PageReader.Result): View {
-        val s = r.scraped
-        val st = s.calls.firstOrNull { it.name == "stDeviceInfo" }
-        val model = st?.args?.getOrNull(4) ?: ""
-        val c = card(20)
-        c.gravity = android.view.Gravity.CENTER_HORIZONTAL
-        c.addView(NgKit.icon(this, NgIcon.ROUTER, cAcc()), LinearLayout.LayoutParams(dp(56), dp(56)))
-        val t = tv(model.ifBlank { "Router" }, 22f, cText(), true)
-        t.setPadding(0, dp(8), 0, 0)
-        c.addView(t)
+    /** Router card: yeh data Dashboard par bhi chalta hai, isliye hamesha dikhta hai. */
+    private suspend fun liveRouterCard(page: PageReader.Result?): View {
+        val ad = RouterAdapterFactory.getAdapter()
+        val model = try { ad.getRouterModel() } catch (e: Exception) { null }
+        val ssid = try { ad.getWifiSsidName() } catch (e: Exception) { null }
+        val cpu = try { ad.getCpuUsagePercent() } catch (e: Exception) { null }
+        val devs = SessionKeeper.devices()
+        val blocked = try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() }
+        val gateway = RouterCredentialStore(this).getGateway()
+
+        val c = card(18)
+        val head = hrow()
+        head.addView(NgKit.icon(this, NgIcon.ROUTER, cAcc()), LinearLayout.LayoutParams(dp(44), dp(44)))
+        val tb = vcol()
+        tb.setPadding(dp(12), 0, 0, 0)
+        tb.addView(tv(RouterNames.label(model ?: "Router"), 20f, cText(), true))
+        tb.addView(tv("Huawei optical ONT router", 12f, cSub()))
+        head.addView(tb, LinearLayout.LayoutParams(0, wrapP, 1f))
+        c.addView(head)
+        val sp = android.view.View(this)
+        c.addView(sp, LinearLayout.LayoutParams(1, dp(8)))
+
+        c.addView(kvRow("Model", model ?: "—"))
+        c.addView(divider())
+        c.addView(kvRow("WiFi name", ssid ?: "—"))
+        c.addView(divider())
+        c.addView(kvRow("Gateway", gateway))
+        c.addView(divider())
+        c.addView(kvRow("CPU usage", cpu?.let { "$it%" } ?: "—"))
+        c.addView(divider())
+        c.addView(kvRow("Devices online", devs.count { it.isOnline }.toString()))
+        c.addView(divider())
+        c.addView(kvRow("Devices known", devs.size.toString()))
+        c.addView(divider())
+        c.addView(kvRow("Blocked devices", blocked.size.toString()))
+
+        // extra fields from the hardware page, when it parsed
+        val st = page?.scraped?.calls?.firstOrNull { it.name == "stDeviceInfo" }
+        if (st != null) {
+            st.args.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { c.addView(divider()); c.addView(kvRow("Serial number", it)) }
+            st.args.getOrNull(2)?.takeIf { it.isNotBlank() }?.let { c.addView(divider()); c.addView(kvRow("Hardware version", it)) }
+            st.args.getOrNull(3)?.takeIf { it.isNotBlank() }?.let { c.addView(divider()); c.addView(kvRow("Firmware", it)) }
+        }
+        val html = page?.html ?: ""
+        Regex("memUsed\\s*=\\s*'(\\d+)%'").find(html)?.let {
+            c.addView(divider())
+            c.addView(kvRow("Memory usage", it.groupValues[1] + "%"))
+        }
         return c
     }
 

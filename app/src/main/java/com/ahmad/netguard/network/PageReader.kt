@@ -48,9 +48,12 @@ object PageReader {
     /** Pehla aisa path jo valid page de. */
     suspend fun fetchFirst(paths: List<String>): Result? {
         val ad = RouterAdapterFactory.getAdapter() as? HuaweiRouterAdapter ?: return null
-        for (p in paths) {
-            val body = ad.fetchPage(p) ?: continue
-            if (looksValid(body)) return Result(p, body, scrape(body))
+        for (attempt in 0..1) {
+            for (p in paths) {
+                val body = ad.fetchPage(p) ?: continue
+                if (looksValid(body)) return Result(p, body, scrape(body))
+            }
+            if (attempt == 0 && !com.ahmad.netguard.ui.SessionKeeper.relogin()) return null
         }
         return null
     }

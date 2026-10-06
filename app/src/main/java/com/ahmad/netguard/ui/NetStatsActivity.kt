@@ -55,7 +55,7 @@ class NetStatsActivity : NgScreen() {
 
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
-            val devs = try { ad.getDevices() } catch (e: Exception) { emptyList<Device>() }
+            val devs = SessionKeeper.devices()
             val dao = AppDatabase.getInstance(this@NetStatsActivity).connectionEventDao()
             val now = System.currentTimeMillis()
             val (from, to) = rangeBounds(rangeIdx, customFrom, customTo)

@@ -136,10 +136,19 @@ class OpticalActivity : NgScreen() {
         add(col, loading)
 
         lifecycleScope.launch {
-            val info: OpticalInfo? = try {
+            val first: OpticalInfo? = try {
                 RouterAdapterFactory.getAdapter().getOpticalInfo()
             } catch (e: Exception) {
                 null
+            }
+            val info: OpticalInfo? = if (first == null && SessionKeeper.relogin()) {
+                try {
+                    RouterAdapterFactory.getAdapter().getOpticalInfo()
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
+                first
             }
             col.removeAllViews()
 

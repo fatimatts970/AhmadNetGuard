@@ -99,6 +99,7 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         creds = RouterCredentialStore(this)
+        SessionKeeper.init(this)
         names = DeviceNameStore(this)
         tab = savedInstanceState?.getInt("tab") ?: 0
         intent.getStringExtra(EXTRA_MODEL)?.let { cachedModel = it }
@@ -586,11 +587,11 @@ class HomeActivity : AppCompatActivity() {
     private fun refreshDashboard(startSpeed: Boolean, force: Boolean) {
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
-            val devs = try { ad.getDevices() } catch (e: Exception) { emptyList<Device>() }
+            val devs = SessionKeeper.devices()
             connectedCount = devs.count { it.isOnline }
             dashOnline?.text = connectedCount.toString()
             dashDevicesSub?.text = "$connectedCount online"
-            dashStatus?.text = "ONLINE"
+            dashStatus?.text = if (SessionKeeper.expired) "LOGIN AGAIN" else "ONLINE"
 
             val cpu = try { ad.getCpuUsagePercent() } catch (e: Exception) { null }
             if (cpu != null) cachedCpu = cpu
@@ -769,6 +770,18 @@ class HomeActivity : AppCompatActivity() {
         devCardBlocked?.background = summaryBg(devFilter == 1, ThemeManager.danger())
 
         val list = devAll
+        if (list.isEmpty() && SessionKeeper.expired) {
+            val c = card(18)
+            c.addView(tv("Session expired", 17f, cText(), true))
+            val m = tv("The app could not sign in to the router again automatically. Please log in once more.", 13f, cSub())
+            m.setPadding(0, dp(6), 0, dp(12))
+            c.addView(m)
+            val b = pill("Log in again", cAcc(), true)
+            b.setOnClickListener { logout() }
+            c.addView(b, lp(WRAP, WRAP))
+            add(box, c, bottom = 0)
+            return
+        }
         if (devFilter == 1) {
             val bl = list.filter { it.isBlocked }
             if (bl.isEmpty()) add(box, tv("No blocked users", 14f, cSub()), bottom = 0)
@@ -794,7 +807,7 @@ class HomeActivity : AppCompatActivity() {
         val box = devList ?: return
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
-            val devs = try { ad.getDevices() } catch (e: Exception) { emptyList<Device>() }
+            val devs = SessionKeeper.devices()
             val blocked = try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() }
 
             val list = ArrayList<Device>()

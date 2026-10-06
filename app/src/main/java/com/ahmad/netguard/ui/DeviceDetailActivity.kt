@@ -78,7 +78,7 @@ class DeviceDetailActivity : NgScreen() {
 
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
-            val devs = try { ad.getDevices() } catch (e: Exception) { emptyList<Device>() }
+            val devs = SessionKeeper.devices()
             val blockedSet = try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() }
             val me = devs.firstOrNull { it.macAddress.equals(mac, true) }
             online = me?.isOnline == true
