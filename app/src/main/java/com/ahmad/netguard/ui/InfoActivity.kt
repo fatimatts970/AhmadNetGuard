@@ -75,6 +75,17 @@ enum class InfoKind(
             "DHCP server" to listOf("/html/bbsp/dhcpservercfg/dhcpservercfg.asp")
         )
     ),
+    WIFI_STATS(
+        "WiFi Statistics", NgIcon.WIFI,
+        listOf(
+            "Radios" to listOf(
+                "/html/amp/wlaninfo/wlaninfo.asp",
+                "/amp/wlaninfo/wlaninfo.asp",
+                "/html/status/wlaninfo.asp",
+                "/status/wlaninfo.asp"
+            )
+        )
+    ),
     PARENTAL(
         "Parental Control", NgIcon.FAMILY,
         listOf(

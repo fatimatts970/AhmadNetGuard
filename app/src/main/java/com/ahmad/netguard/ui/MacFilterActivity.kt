@@ -1,160 +1,91 @@
 package com.ahmad.netguard.ui
 
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
-import com.ahmad.netguard.R
 import com.ahmad.netguard.network.DeviceNameStore
 import com.ahmad.netguard.network.RouterAdapterFactory
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
-class MacFilterActivity : AppCompatActivity() {
+/** Blocked MAC addresses ki list, naye theme mein. */
+class MacFilterActivity : NgScreen() {
 
-    private val routerAdapter = RouterAdapterFactory.getAdapter()
-    private lateinit var nameStore: DeviceNameStore
-    private lateinit var layoutRules: LinearLayout
-    private lateinit var textNoRules: TextView
-    private lateinit var textStatusPill: TextView
+    private lateinit var names: DeviceNameStore
+    private val macRegex = Regex("^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_mac_filter)
-
-        nameStore = DeviceNameStore(this)
-        layoutRules = findViewById(R.id.layoutFilterRules)
-        textNoRules = findViewById(R.id.text_no_rules)
-        textStatusPill = findViewById(R.id.text_filter_status_pill)
-
-        findViewById<android.widget.ImageButton>(R.id.btnBackMacFilter).setOnClickListener { finish() }
-        findViewById<CardView>(R.id.btnAddRule).setOnClickListener { showAddRuleDialog() }
-
-        loadRules()
+        names = DeviceNameStore(this)
+        setupScreen("MAC Filter") { load() }
+        load()
     }
 
-    private fun loadRules() {
+    private fun load() {
+        col.removeAllViews()
+        val loading = card(18)
+        loading.addView(tv("Loading…", 14f, cSub()))
+        add(col, loading)
+
         lifecycleScope.launch {
-            try {
-                val enabled = routerAdapter.isFilterEnabled()
-                textStatusPill.text = if (enabled) "● ON" else "● OFF"
-                textStatusPill.setTextColor(getColor(if (enabled) R.color.green_online else R.color.danger))
+            val ad = RouterAdapterFactory.getAdapter()
+            val blocked = try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() }
+            val enabled = try { ad.isFilterEnabled() } catch (e: Exception) { false }
+            col.removeAllViews()
 
-                val blockedMacs = routerAdapter.getBlockedMacs()
-                layoutRules.removeAllViews()
+            val head = card(16)
+            val top = hrow()
+            val tb = vcol()
+            tb.addView(tv("Blocklist filter", 16f, cText(), true))
+            tb.addView(tv(if (enabled) "Active — listed devices cannot connect" else "Off — turns on when you block a device", 12f, cSub()))
+            top.addView(tb, LinearLayout.LayoutParams(0, wrapP, 1f))
+            top.addView(pill(if (enabled) "ON" else "OFF", if (enabled) cAcc() else cSub()))
+            head.addView(top)
+            add(col, head)
 
-                if (blockedMacs.isEmpty()) {
-                    textNoRules.visibility = android.view.View.VISIBLE
-                } else {
-                    textNoRules.visibility = android.view.View.GONE
-                    blockedMacs.sorted().forEach { mac -> layoutRules.addView(buildRuleRow(mac)) }
-                }
-            } catch (e: Exception) {
-                Snackbar.make(layoutRules, "Could not load filter rules from router", Snackbar.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun buildRuleRow(mac: String): CardView {
-        val card = CardView(this).apply {
-            radius = 32f
-            setCardBackgroundColor(getColor(R.color.card_white))
-            cardElevation = 0f
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            params.bottomMargin = (10 * resources.displayMetrics.density).toInt()
-            layoutParams = params
-        }
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            val pad = (14 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad, pad, pad)
-        }
-
-        val textCol = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        val name = nameStore.getCustomName(mac) ?: "Unknown Device"
-        textCol.addView(TextView(this).apply {
-            text = name
-            setTextColor(getColor(R.color.text_primary))
-            textSize = 15f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        })
-        textCol.addView(TextView(this).apply {
-            text = mac.lowercase()
-            setTextColor(getColor(R.color.text_secondary))
-            textSize = 12f
-        })
-
-        val removeBtn = Button(this).apply {
-            text = "Unblock"
-            setTextColor(getColor(R.color.card_white))
-            background = getDrawable(R.drawable.bg_pill_solid_green)
-            setPadding(24, 8, 24, 8)
-            setOnClickListener { unblockMac(mac) }
-        }
-
-        row.addView(textCol)
-        row.addView(removeBtn)
-        card.addView(row)
-        return card
-    }
-
-    private fun unblockMac(mac: String) {
-        lifecycleScope.launch {
-            val success = routerAdapter.unblockDevice(mac)
-            if (success) {
-                Snackbar.make(layoutRules, "Unblocked $mac", Snackbar.LENGTH_SHORT).show()
-                loadRules()
-            } else {
-                Snackbar.make(layoutRules, "Failed — check router connection", Snackbar.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun showAddRuleDialog() {
-        val input = EditText(this).apply {
-            hint = "MAC address, e.g. AA:BB:CC:DD:EE:FF"
-            val pad = (20 * resources.displayMetrics.density).toInt()
-            setPadding(pad, pad, pad, pad)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Block a MAC address")
-            .setView(input)
-            .setPositiveButton("Block") { _, _ ->
-                val mac = input.text.toString().trim()
-                if (!isValidMac(mac)) {
-                    Toast.makeText(this, "Enter a valid MAC address", Toast.LENGTH_SHORT).show()
-                } else {
-                    lifecycleScope.launch {
-                        val success = routerAdapter.blockDevice(mac)
-                        if (success) {
-                            Snackbar.make(layoutRules, "Blocked $mac", Snackbar.LENGTH_SHORT).show()
-                            loadRules()
-                        } else {
-                            Snackbar.make(layoutRules, "Failed — check router connection", Snackbar.LENGTH_LONG).show()
+            val addBtn = pill("Block a MAC address", ThemeManager.danger(), true)
+            addBtn.setOnClickListener {
+                NgDialog.input(this@MacFilterActivity, "Block a device", "Format: AA:BB:CC:DD:EE:FF", "", "MAC address") { raw ->
+                    val mac = raw.trim().replace('-', ':').uppercase()
+                    if (!macRegex.matches(mac)) {
+                        toast("That is not a valid MAC address")
+                    } else {
+                        lifecycleScope.launch {
+                            val ok = try { ad.blockDevice(mac) } catch (e: Exception) { false }
+                            toast(if (ok) "Device blocked" else "Could not block")
+                            load()
                         }
                     }
                 }
             }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
+            add(col, addBtn, bottom = 14)
 
-    private fun isValidMac(mac: String): Boolean =
-        Regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$").matches(mac)
+            add(col, section("Blocked devices (${blocked.size})"), bottom = 0)
+            if (blocked.isEmpty()) {
+                val c = card(16)
+                c.addView(tv("No blocked devices.", 14f, cSub()))
+                add(col, c, bottom = 0)
+            }
+            for (mac in blocked.sorted()) {
+                val c = card(14)
+                val row = hrow()
+                val t = vcol()
+                t.addView(tv(names.getCustomName(mac) ?: "Blocked device", 15f, cText(), true))
+                t.addView(tv(mac, 12f, cSub()))
+                row.addView(t, LinearLayout.LayoutParams(0, wrapP, 1f))
+                val un = pill("Unblock", cAcc())
+                un.setOnClickListener {
+                    un.isEnabled = false
+                    lifecycleScope.launch {
+                        val ok = try { ad.unblockDevice(mac) } catch (e: Exception) { false }
+                        toast(if (ok) "Device unblocked" else "Could not unblock")
+                        load()
+                    }
+                }
+                row.addView(un)
+                c.addView(row)
+                add(col, c, bottom = 10)
+            }
+            pull.done()
+        }
+    }
 }

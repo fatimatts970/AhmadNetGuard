@@ -328,7 +328,7 @@ class LoginActivity : AppCompatActivity() {
         scanBox.removeAllViews()
         if (ip != null) {
             inputIp.setText(ip)
-            scanBox.addView(routerChip("Gateway", ip), lpFull(bottom = 8))
+            scanBox.addView(routerChip(RouterNames.get(this, ip) ?: "Gateway", ip), lpFull(bottom = 8))
         } else {
             scanBox.addView(text("Not connected to WiFi — gateway not found", 13f, ThemeManager.sub(), false), lpWrap())
         }
@@ -341,32 +341,64 @@ class LoginActivity : AppCompatActivity() {
             val candidates = LinkedHashSet<String>()
             detectWifiGatewayIp()?.let { candidates.add(it) }
             candidates.addAll(listOf("192.168.100.1", "192.168.1.1", "192.168.0.1", "192.168.8.1", "192.168.2.1", "10.0.0.1"))
-            val found: List<String> = withContext(Dispatchers.IO) {
+            val found: List<Pair<String, String?>> = withContext(Dispatchers.IO) {
                 coroutineScope {
-                    candidates.map { ip -> async { ip to probe(ip) } }.awaitAll()
-                }.filter { it.second }.map { it.first }
+                    candidates.map { ip -> async { ip to probeModel(ip) } }.awaitAll()
+                }.filter { it.second.first }.map { it.first to it.second.second }
             }
             scanBox.removeAllViews()
             if (found.isEmpty()) {
                 scanBox.addView(text("No modem found — enter the IP manually", 13f, ThemeManager.sub(), false), lpWrap())
             } else {
-                for (ip in found) scanBox.addView(routerChip("Router found", ip), lpFull(bottom = 8))
+                for ((ip, model) in found) {
+                    val title = model ?: RouterNames.get(this@LoginActivity, ip) ?: "Router"
+                    scanBox.addView(routerChip(title, ip), lpFull(bottom = 8))
+                }
             }
         }
     }
 
-    private fun probe(ip: String): Boolean {
-        return try {
-            val conn = URL("http://$ip/").openConnection() as HttpURLConnection
-            conn.connectTimeout = 1200
-            conn.readTimeout = 1200
-            conn.instanceFollowRedirects = false
-            val code = conn.responseCode
-            conn.disconnect()
-            code > 0
-        } catch (e: Exception) {
-            false
+    /** (reachable, model label) — login page se asli model naam nikalta hai. */
+    private fun probeModel(ip: String): Pair<Boolean, String?> {
+        var reachable = false
+        for (path in listOf("/", "/index.asp", "/login.asp")) {
+            try {
+                val conn = URL("http://$ip$path").openConnection() as HttpURLConnection
+                conn.connectTimeout = 1500
+                conn.readTimeout = 1500
+                conn.instanceFollowRedirects = true
+                val code = conn.responseCode
+                if (code <= 0) {
+                    conn.disconnect()
+                    continue
+                }
+                reachable = true
+                val server = conn.getHeaderField("Server") ?: ""
+                val body = try {
+                    conn.inputStream.bufferedReader().use { r ->
+                        val buf = CharArray(60000)
+                        val n = r.read(buf)
+                        if (n > 0) String(buf, 0, n) else ""
+                    }
+                } catch (e: Exception) {
+                    ""
+                }
+                conn.disconnect()
+                val hay = server + " " + body
+                val model = Regex("\\b(HG|EG|HS|WS|EchoLife\\s?)[A-Za-z]?\\d{3,4}[A-Za-z0-9\\-]{0,6}\\b")
+                    .find(hay)?.value?.trim()
+                if (model != null) return true to RouterNames.label(model)
+                val title = Regex("<title>([^<]{2,40})</title>", RegexOption.IGNORE_CASE)
+                    .find(body)?.groupValues?.get(1)?.trim()
+                if (!title.isNullOrBlank() && !title.equals("login", true) && !title.equals("index", true)) {
+                    return true to title
+                }
+                if (hay.contains("huawei", true)) return true to "Huawei Router"
+            } catch (e: Exception) {
+                // next path
+            }
         }
+        return reachable to null
     }
 
     private fun routerChip(title: String, ip: String): View {
@@ -423,6 +455,7 @@ class LoginActivity : AppCompatActivity() {
                 )
 
                 val model = adapter.getRouterModel()
+                if (!model.isNullOrBlank()) RouterNames.save(this@LoginActivity, gateway, model)
                 val intent = Intent(this@LoginActivity, HomeActivity::class.java)
                 if (!model.isNullOrBlank()) intent.putExtra(HomeActivity.EXTRA_MODEL, model)
                 startActivity(intent)

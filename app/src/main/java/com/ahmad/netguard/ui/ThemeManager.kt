@@ -6,7 +6,7 @@ import android.graphics.Color
 import androidx.core.graphics.ColorUtils
 
 /**
- * AHMAD WiFi Manager — theme settings (dark mode, accent colour, card style,
+ * AHMAD NetGuard — theme settings (dark mode, accent colour, card style,
  * corner style, 3D effect, dashboard widgets). Sab kuch SharedPreferences mein save hota hai.
  */
 object ThemeManager {

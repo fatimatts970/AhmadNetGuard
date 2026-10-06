@@ -1,282 +1,213 @@
 package com.ahmad.netguard.ui
 
-import android.graphics.Typeface
+import android.graphics.Color
 import android.os.Bundle
-import android.view.Gravity
-import android.view.View
+import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
-import com.ahmad.netguard.R
-import com.ahmad.netguard.databinding.ActivityWifiSettingsBinding
 import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.network.RouterCredentialStore
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
-class WifiSettingsActivity : AppCompatActivity() {
+/** Main WiFi + Guest WiFi + reboot, naye theme mein. */
+class WifiSettingsActivity : NgScreen() {
 
-    private lateinit var binding: ActivityWifiSettingsBinding
-    private lateinit var credStore: RouterCredentialStore
-    private var guestListPasswordVisible = false
-    private var editingProfileName: String? = null
+    private lateinit var creds: RouterCredentialStore
+    private lateinit var ssidEdit: EditText
+    private lateinit var passEdit: EditText
+    private lateinit var guestSsidEdit: EditText
+    private lateinit var guestPassEdit: EditText
+    private lateinit var guestList: LinearLayout
+    private var editingGuest: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityWifiSettingsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        credStore = RouterCredentialStore(this)
-
-        binding.btnBack.setOnClickListener { finish() }
-
-        binding.btnToggleWifiPassword.setOnClickListener {
-            togglePasswordVisibility(binding.inputWifiPassword, binding.btnToggleWifiPassword)
-        }
-        binding.btnToggleGuestPassword.setOnClickListener {
-            togglePasswordVisibility(binding.inputGuestPassword, binding.btnToggleGuestPassword)
-        }
-
-        binding.btnAddGuestWifi.setOnClickListener {
-            val ssid = binding.inputGuestSsid.text.toString().trim()
-            val pass = binding.inputGuestPassword.text.toString().trim()
-            if (ssid.isEmpty() || pass.length < 8) {
-                Toast.makeText(this, "Enter a guest name and a password (8+ characters)", Toast.LENGTH_SHORT).show()
-            } else {
-                lifecycleScope.launch {
-                    binding.progressGuestWifi.visibility = View.VISIBLE
-                    val router = RouterAdapterFactory.getAdapter()
-                    val diagnostic = router.setGuestWifiDiagnostic(ssid, pass, true)
-                    binding.progressGuestWifi.visibility = View.GONE
-                    val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
-                    val msg = when (diagnostic) {
-                        "SUCCESS" -> "Guest WiFi is on: $ssid"
-                        "APPLIED" -> "Applying — router WiFi will restart for a few seconds, then guest WiFi will be on."
-                        else -> diagnostic
-                    }
-                    if (success) {
-                        credStore.saveGuestProfile(ssid, pass, editingProfileName)
-                        editingProfileName = null
-                        binding.inputGuestSsid.setText("")
-                        binding.inputGuestPassword.setText("")
-                        renderGuestList()
-                    }
-                    Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        binding.btnSaveWifiSettings.setOnClickListener {
-            val ssid = binding.inputSsid.text.toString().trim()
-            val password = binding.inputWifiPassword.text.toString().trim()
-
-            if (ssid.isEmpty() || password.isEmpty()) {
-                binding.textWifiError.text = "SSID and Password required"
-                binding.textWifiError.visibility = View.VISIBLE
-                return@setOnClickListener
-            }
-
-            lifecycleScope.launch {
-                binding.btnSaveWifiSettings.isEnabled = false
-                binding.progressWifiSave.visibility = View.VISIBLE
-                binding.textWifiError.visibility = View.GONE
-
-                val router = RouterAdapterFactory.getAdapter()
-                val success = router.updateWifiSettings(ssid, password)
-
-                binding.btnSaveWifiSettings.isEnabled = true
-                binding.progressWifiSave.visibility = View.GONE
-
-                if (success) {
-                    Toast.makeText(this@WifiSettingsActivity, "Wi-Fi Settings Updated!", Toast.LENGTH_SHORT).show()
-                    finish()
-                } else {
-                    binding.textWifiError.text = "Update Failed! Check credentials."
-                    binding.textWifiError.visibility = View.VISIBLE
-                }
-            }
-        }
-
-        binding.btnRebootRouter.setOnClickListener {
-            lifecycleScope.launch {
-                binding.btnRebootRouter.isEnabled = false
-                val router = RouterAdapterFactory.getAdapter()
-                val success = router.restartRouter()
-                binding.btnRebootRouter.isEnabled = true
-                val msg = if (success) "Router is rebooting..." else "Reboot failed! Check connection."
-                Toast.makeText(this@WifiSettingsActivity, msg, Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        renderGuestList()
+        creds = RouterCredentialStore(this)
+        setupScreen("Wi-Fi Settings") { loadSsid() }
+        build()
+        loadSsid()
     }
 
-    // Router hardware sirf EK guest WLAN slot support karta hai — jo bhi profile
-    // last "Save/Turn On" hua wahi actually broadcast ho raha hai. Baaki profiles
-    // yahan sirf local yaad rakhe hue hain taake dobara on karna aasan ho.
-    private fun renderGuestList() {
-        val profiles = credStore.getGuestProfiles()
-        binding.layoutGuestList.removeAllViews()
+    private fun build() {
+        // ---- main wifi
+        add(col, section("Main WiFi"), bottom = 0)
+        val main = card(16)
+        main.addView(fieldLabel("Network name (SSID)"))
+        val (b1, e1) = inputField("Network name")
+        ssidEdit = e1
+        main.addView(b1)
+        main.addView(fieldLabel("New password (8+ characters)"))
+        val (b2, e2) = inputField("New password", password = true)
+        passEdit = e2
+        main.addView(b2)
+        val save = pill("Save changes", cAcc(), true)
+        save.textSize = 14f
+        save.setOnClickListener { saveMain(save) }
+        val lp = LinearLayout.LayoutParams(matchP, wrapP)
+        lp.topMargin = dp(14)
+        main.addView(save, lp)
+        add(col, main, bottom = 6)
+        add(col, tv("Saving changes may disconnect your phone from the WiFi for a moment.", 12f, cSub()), bottom = 14)
 
-        if (profiles.isEmpty()) {
-            binding.textNoGuests.visibility = View.VISIBLE
+        // ---- guest wifi
+        add(col, section("Guest WiFi"), bottom = 0)
+        val guest = card(16)
+        guest.addView(fieldLabel("Guest network name"))
+        val (b3, e3) = inputField("Guest name")
+        guestSsidEdit = e3
+        guest.addView(b3)
+        guest.addView(fieldLabel("Guest password (8+ characters)"))
+        val (b4, e4) = inputField("Guest password", password = true)
+        guestPassEdit = e4
+        guest.addView(b4)
+        val gsave = pill("Save & turn on", cAcc(), true)
+        gsave.setOnClickListener { saveGuest(gsave) }
+        val glp = LinearLayout.LayoutParams(matchP, wrapP)
+        glp.topMargin = dp(14)
+        guest.addView(gsave, glp)
+        add(col, guest, bottom = 12)
+
+        guestList = vcol()
+        add(col, guestList, bottom = 14)
+        renderGuests()
+
+        // ---- router
+        add(col, section("Router"), bottom = 0)
+        val reboot = card(14)
+        val row = hrow()
+        val tb = vcol()
+        tb.addView(tv("Reboot modem", 15f, ThemeManager.danger(), true))
+        tb.addView(tv("All devices lose internet for a short time", 12f, cSub()))
+        row.addView(tb, LinearLayout.LayoutParams(0, wrapP, 1f))
+        row.addView(ic(NgIcon.POWER, ThemeManager.danger(), 24))
+        reboot.addView(row)
+        reboot.setOnClickListener {
+            NgDialog.confirm(this, "Reboot modem", "All connected devices will lose internet for a short time. Continue?", "Reboot", true) {
+                lifecycleScope.launch {
+                    val ok = try { RouterAdapterFactory.getAdapter().restartRouter() } catch (e: Exception) { false }
+                    toast(if (ok) "Modem is rebooting…" else "Reboot failed")
+                }
+            }
+        }
+        add(col, reboot, bottom = 0)
+    }
+
+    private fun loadSsid() {
+        lifecycleScope.launch {
+            val s = try { RouterAdapterFactory.getAdapter().getWifiSsidName() } catch (e: Exception) { null }
+            if (!s.isNullOrBlank() && ssidEdit.text.isNullOrBlank()) ssidEdit.setText(s)
+            pull.done()
+        }
+    }
+
+    private fun saveMain(btn: android.widget.TextView) {
+        val ssid = ssidEdit.text.toString().trim()
+        val pass = passEdit.text.toString().trim()
+        if (ssid.isEmpty() || pass.length < 8) {
+            toast("Enter a name and a password of 8+ characters")
             return
         }
-        binding.textNoGuests.visibility = View.GONE
-        val activeSsid = credStore.getGuestSsid()
-        profiles.forEach { (ssid, pass) ->
-            binding.layoutGuestList.addView(buildGuestCard(ssid, pass, ssid == activeSsid))
+        btn.isEnabled = false
+        btn.text = "Saving…"
+        lifecycleScope.launch {
+            val ok = try { RouterAdapterFactory.getAdapter().updateWifiSettings(ssid, pass) } catch (e: Exception) { false }
+            btn.isEnabled = true
+            btn.text = "Save changes"
+            toast(if (ok) "WiFi updated" else "Could not update WiFi")
+            if (ok) passEdit.setText("")
         }
     }
 
-    private fun buildGuestCard(ssid: String, pass: String, isActive: Boolean): CardView {
-        val density = resources.displayMetrics.density
-        val card = CardView(this).apply {
-            radius = 16 * density
-            setCardBackgroundColor(getColor(R.color.card_white))
-            cardElevation = 0f
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = (10 * density).toInt() }
+    private fun saveGuest(btn: android.widget.TextView) {
+        val ssid = guestSsidEdit.text.toString().trim()
+        val pass = guestPassEdit.text.toString().trim()
+        if (ssid.isEmpty() || pass.length < 8) {
+            toast("Enter a name and a password of 8+ characters")
+            return
         }
-
-        val outer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val pad = (16 * density).toInt()
-            setPadding(pad, pad, pad, pad)
-        }
-
-        val titleRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        titleRow.addView(TextView(this).apply {
-            text = ssid
-            setTextColor(getColor(R.color.text_primary))
-            textSize = 16f
-            setTypeface(typeface, Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        })
-        if (isActive) {
-            titleRow.addView(TextView(this).apply {
-                text = "● ON"
-                setTextColor(getColor(R.color.green_online))
-                textSize = 11f
-                setTypeface(typeface, Typeface.BOLD)
-                setBackgroundResource(R.drawable.bg_pill_badge)
-                setPadding((10 * density).toInt(), (5 * density).toInt(), (10 * density).toInt(), (5 * density).toInt())
-            })
-        }
-        outer.addView(titleRow)
-
-        val passRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            (layoutParams as? LinearLayout.LayoutParams)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = (4 * density).toInt() }
-        }
-        val passText = TextView(this).apply {
-            text = if (guestListPasswordVisible) pass else "•".repeat(pass.length)
-            setTextColor(getColor(R.color.text_secondary))
-            textSize = 13f
-        }
-        val eyeBtn = android.widget.ImageButton(this).apply {
-            setImageResource(if (guestListPasswordVisible) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_view)
-            background = null
-            layoutParams = LinearLayout.LayoutParams((28 * density).toInt(), (28 * density).toInt()).apply {
-                marginStart = (8 * density).toInt()
+        btn.isEnabled = false
+        btn.text = "Saving…"
+        lifecycleScope.launch {
+            val result = try {
+                RouterAdapterFactory.getAdapter().setGuestWifiDiagnostic(ssid, pass, true)
+            } catch (e: Exception) {
+                "Error: " + (e.message ?: "unknown")
             }
-            setOnClickListener {
-                guestListPasswordVisible = !guestListPasswordVisible
-                renderGuestList()
+            btn.isEnabled = true
+            btn.text = "Save & turn on"
+            val ok = result == "SUCCESS" || result == "APPLIED"
+            if (ok) {
+                creds.saveGuestProfile(ssid, pass, editingGuest)
+                creds.saveGuestWifi(ssid, pass)
+                editingGuest = null
+                guestSsidEdit.setText("")
+                guestPassEdit.setText("")
+                renderGuests()
+                toast("Guest WiFi is on")
+            } else {
+                toast("Guest WiFi failed: " + result.take(80))
             }
         }
-        passRow.addView(passText)
-        passRow.addView(eyeBtn)
-        outer.addView(passRow)
+    }
 
-        val divider = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (1 * density).toInt()).apply {
-                topMargin = (12 * density).toInt(); bottomMargin = (12 * density).toInt()
-            }
-            setBackgroundColor(getColor(R.color.bg_screen))
+    private fun renderGuests() {
+        guestList.removeAllViews()
+        val profiles = creds.getGuestProfiles()
+        val active = creds.getGuestSsid()
+        if (profiles.isEmpty()) {
+            add(guestList, tv("No saved guest networks yet.", 13f, cSub()), bottom = 0)
+            return
         }
-        outer.addView(divider)
+        for ((ssid, pass) in profiles) {
+            val c = card(14)
+            val top = hrow()
+            top.addView(tv(ssid, 15f, cText(), true), LinearLayout.LayoutParams(0, wrapP, 1f))
+            if (ssid == active) top.addView(pill("Active", cAcc()))
+            c.addView(top)
 
-        val btnRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-
-        fun pillButton(label: String, bg: Int, textColor: Int): TextView = TextView(this).apply {
-            text = label
-            setTextColor(getColor(textColor))
-            textSize = 12f
-            setTypeface(typeface, Typeface.BOLD)
-            setBackgroundResource(bg)
-            val padH = (14 * density).toInt(); val padV = (9 * density).toInt()
-            setPadding(padH, padV, padH, padV)
-            isClickable = true
-            isFocusable = true
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = (6 * density).toInt()
+            var shown = false
+            val pw = tv("Password  ••••••••", 12f, cSub())
+            pw.setPadding(0, dp(6), 0, dp(10))
+            pw.setOnClickListener {
+                shown = !shown
+                pw.text = if (shown) "Password  $pass" else "Password  ••••••••"
             }
-        }
+            c.addView(pw)
 
-        val editBtn = pillButton("Edit", R.drawable.bg_pill_outline, R.color.brand_dark).apply {
-            setOnClickListener {
-                editingProfileName = ssid
-                binding.inputGuestSsid.setText(ssid)
-                binding.inputGuestPassword.setText(pass)
-                Toast.makeText(this@WifiSettingsActivity, "Edit above, then tap Save / Turn On to update this guest", Toast.LENGTH_SHORT).show()
+            val actions = hrow()
+            val edit = pill("Edit", cAcc())
+            edit.setOnClickListener {
+                editingGuest = ssid
+                guestSsidEdit.setText(ssid)
+                guestPassEdit.setText(pass)
+                toast("Edit the values above, then Save")
             }
-        }
-        val deleteBtn = pillButton("Delete / Turn Off", R.drawable.bg_pill_outline_red, R.color.danger).apply {
-            (layoutParams as LinearLayout.LayoutParams).marginEnd = 0
-            setOnClickListener {
-                lifecycleScope.launch {
-                    binding.progressGuestWifi.visibility = View.VISIBLE
-                    val router = RouterAdapterFactory.getAdapter()
-                    val diagnostic = router.setGuestWifiDiagnostic(ssid, pass, false)
-                    binding.progressGuestWifi.visibility = View.GONE
-                    val success = diagnostic == "SUCCESS" || diagnostic == "APPLIED"
-                    val msg = when (diagnostic) {
-                        "SUCCESS" -> "Guest WiFi turned off"
-                        "APPLIED" -> "Turning off — router WiFi will restart for a few seconds."
-                        else -> diagnostic
+            val off = pill("Turn off & delete", ThemeManager.danger())
+            off.setOnClickListener {
+                NgDialog.confirm(this, "Delete guest network", "Turn off and remove \"$ssid\"?", "Delete", true) {
+                    lifecycleScope.launch {
+                        val r = try {
+                            RouterAdapterFactory.getAdapter().setGuestWifiDiagnostic(ssid, pass, false)
+                        } catch (e: Exception) {
+                            "Error"
+                        }
+                        val ok = r == "SUCCESS" || r == "APPLIED"
+                        if (ok) {
+                            creds.deleteGuestProfile(ssid)
+                            renderGuests()
+                            toast("Guest network removed")
+                        } else {
+                            toast("Could not turn it off")
+                        }
                     }
-                    if (success) {
-                        credStore.deleteGuestProfile(ssid)
-                        if (editingProfileName == ssid) editingProfileName = null
-                        renderGuestList()
-                    }
-                    Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).show()
                 }
             }
+            val p = LinearLayout.LayoutParams(wrapP, wrapP)
+            p.marginEnd = dp(10)
+            actions.addView(edit, p)
+            actions.addView(off)
+            c.addView(actions)
+            add(guestList, c, bottom = 10)
         }
-
-        btnRow.addView(editBtn)
-        btnRow.addView(deleteBtn)
-        outer.addView(btnRow)
-
-        card.addView(outer)
-        return card
-    }
-
-    private val passwordVisibilityState = mutableMapOf<Int, Boolean>()
-
-    private fun togglePasswordVisibility(input: android.widget.EditText, icon: android.widget.ImageView) {
-        val isCurrentlyVisible = passwordVisibilityState[input.id] ?: false
-        if (isCurrentlyVisible) {
-            input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            icon.setImageResource(android.R.drawable.ic_menu_view)
-        } else {
-            input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-            icon.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-        }
-        passwordVisibilityState[input.id] = !isCurrentlyVisible
-        input.setSelection(input.text.length)
     }
 }

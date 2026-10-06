@@ -40,7 +40,7 @@ private val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
 private val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
 /**
- * AHMAD WiFi Manager — naya Home screen.
+ * AHMAD NetGuard — naya Home screen.
  * 4 tabs: Dashboard / Devices / Advanced / Theme.
  * Poora UI code se bana hai (XML layout nahi), taake build mein resource errors na aayen.
  */
@@ -393,7 +393,7 @@ class HomeActivity : AppCompatActivity() {
         Tile("optical", NgIcon.SUN, Color.parseColor("#16A34A"), "Optical Info", "Laser power & temp") { startActivity(Intent(this, OpticalActivity::class.java)) },
         Tile("ports", NgIcon.NETWORK, Color.parseColor("#1E5BB8"), "Ethernet Ports", "Link status & speeds") { InfoActivity.open(this, InfoKind.ETHERNET) },
         Tile("devinfo", NgIcon.ROUTER, Color.parseColor("#A0600F"), "Device Info", "CPU, RAM & Versions") { InfoActivity.open(this, InfoKind.DEVICE) },
-        Tile("usage", NgIcon.USAGE, Color.parseColor("#1E78C8"), "Usage", "Traffic statistics") { startActivity(Intent(this, NetStatsActivity::class.java)) },
+        Tile("usage", NgIcon.USAGE, Color.parseColor("#1E78C8"), "Usage", "Online time & traffic") { startActivity(Intent(this, NetStatsActivity::class.java)) },
         Tile("voip", NgIcon.HEADSET, Color.parseColor("#0F8A4B"), "VoIP Status", "SIP line status") { InfoActivity.open(this, InfoKind.VOIP) },
         Tile("wifipass", NgIcon.WIFI, Color.parseColor("#6D4FC2"), "Wi-Fi Password", "Change SSID & Key") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
         Tile("guest", NgIcon.PEOPLE, Color.parseColor("#475569"), "Guest", "Guest WiFi & users") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
@@ -868,7 +868,16 @@ class HomeActivity : AppCompatActivity() {
                 loadDevices()
             }
         }
-        c.addView(btn, lp(WRAP, WRAP))
+        val details = pill("View Details", cAcc(), true)
+        details.setOnClickListener {
+            DeviceDetailActivity.open(this, d.macAddress, nameView.text.toString(), d.ipAddress)
+        }
+        val actions = hrow()
+        val dlp = lp(WRAP, WRAP)
+        dlp.marginEnd = dp(10)
+        actions.addView(details, dlp)
+        actions.addView(btn)
+        c.addView(actions, lp(WRAP, WRAP))
         return c
     }
 

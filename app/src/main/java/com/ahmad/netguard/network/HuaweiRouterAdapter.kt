@@ -91,6 +91,22 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
+    /** Read-only: router page POST ke saath (kuch pages sirf POST par data dete hain). */
+    suspend fun fetchPagePost(path: String): String? =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "http://$gateway" + (if (path.startsWith("/")) path else "/$path")
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("Cookie", sessionCookie)
+                    .post(okhttp3.FormBody.Builder().build())
+                    .build()
+                client.newCall(request).execute().use { it.body?.string() }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
     override suspend fun getDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {

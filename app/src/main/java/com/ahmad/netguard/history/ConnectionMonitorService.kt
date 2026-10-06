@@ -115,7 +115,7 @@ class ConnectionMonitorService : Service() {
                         knownDevices[device.macAddress] = device
 
                         if (device.isOnline) {
-                            db.usageDao().addBytes(device.macAddress, todayEpoch, bytesThisPoll)
+                            // fake usage estimate removed: no real per-device bytes from router
                         }
                     }
                     isFirstPoll = false
