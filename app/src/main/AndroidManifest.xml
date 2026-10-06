@@ -44,6 +44,7 @@
         <activity android:name=".ui.SpeedTestActivity" android:exported="false" />
         <activity android:name=".ui.NotificationsActivity" android:exported="false" />
         <activity android:name=".ui.DeviceDetailActivity" android:exported="false" />
+        <activity android:name=".ui.GuestWifiActivity" android:exported="false" />
         <activity android:name=".ui.HistoryActivity" android:exported="false" />
 
         <activity android:name=".ui.UsageActivity" android:exported="false" />

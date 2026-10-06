@@ -4,6 +4,12 @@ import android.content.Context
 import com.ahmad.netguard.model.Device
 import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.network.RouterCredentialStore
+import com.ahmad.netguard.network.HuaweiRouterAdapter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -37,13 +43,31 @@ object SessionKeeper {
             expired = true
             return@withLock false
         }
+        val ad = RouterAdapterFactory.getAdapter()
+        val hw = ad as? HuaweiRouterAdapter
+        val saved = hw?.exportSession()
         val ok = try {
-            RouterAdapterFactory.getAdapter().login(ip, user, pass)
+            ad.login(ip, user, pass)
         } catch (e: Exception) {
             false
         }
+        // Agar login fail hua to purani (shayad zinda) session wapas rakho, taake wo bhi na toote.
+        if (!ok && saved != null) hw.importSession(saved)
         expired = !ok
         ok
+    }
+
+    private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * WiFi/guest settings badalne ke baad router ka WiFi radio ~5 second restart hota hai aur
+     * login session aksar toot jata hai. Thodi der baad khud naya session le lo.
+     */
+    fun refreshAfterWrite() {
+        bgScope.launch {
+            delay(6_000)
+            relogin(force = true)
+        }
     }
 
     /** Device list; khaali aaye to (jo is network par kabhi nahi hona chahiye) session refresh karke dobara. */

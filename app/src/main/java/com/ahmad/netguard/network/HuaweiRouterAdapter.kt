@@ -107,6 +107,13 @@ class HuaweiRouterAdapter : RouterAdapter {
             }
         }
 
+    /** Session cookie ko save/restore karne ke liye (failed re-login purani session na tode). */
+    fun exportSession(): String = sessionCookie
+
+    fun importSession(cookie: String) {
+        sessionCookie = cookie
+    }
+
     override suspend fun getDevices(): List<Device> =
         withContext(Dispatchers.IO) {
             try {

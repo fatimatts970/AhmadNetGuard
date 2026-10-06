@@ -74,6 +74,7 @@ class HomeActivity : AppCompatActivity() {
     private var prevTx = -1L
     private var prevAt = 0L
     private var devSig = ""
+    private var dashGuest: SwitchCompat? = null
     private var dashHero: TextView? = null
     private var dashSpeed: TextView? = null
     private var dashModel: TextView? = null
@@ -121,6 +122,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        dashGuest?.isChecked = GuestState.isOn(this)
         startLive()
     }
 
@@ -359,6 +361,7 @@ class HomeActivity : AppCompatActivity() {
         applyChrome()
         content.removeAllViews()
         dashModel = null
+        dashGuest = null
         dashOnline = null
         dashLive = null
         currentPull = null
@@ -398,7 +401,7 @@ class HomeActivity : AppCompatActivity() {
         Tile("usage", NgIcon.USAGE, Color.parseColor("#1E78C8"), "Usage", "Online time & traffic") { startActivity(Intent(this, NetStatsActivity::class.java)) },
         Tile("voip", NgIcon.HEADSET, Color.parseColor("#0F8A4B"), "VoIP Status", "SIP line status") { InfoActivity.open(this, InfoKind.VOIP) },
         Tile("wifipass", NgIcon.WIFI, Color.parseColor("#6D4FC2"), "Wi-Fi Password", "Change SSID & Key") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
-        Tile("guest", NgIcon.PEOPLE, Color.parseColor("#475569"), "Guest", "Guest WiFi & users") { startActivity(Intent(this, WifiSettingsActivity::class.java)) },
+        Tile("guest", NgIcon.PEOPLE, Color.parseColor("#475569"), "Guest", "Guest WiFi on / off") { startActivity(Intent(this, GuestWifiActivity::class.java)) },
         Tile("macfilter", NgIcon.SHIELD, Color.parseColor("#0F9D6E"), "MAC Filter", "Allow/Block devices") { startActivity(Intent(this, MacFilterActivity::class.java)) },
         Tile("parental", NgIcon.FAMILY, Color.parseColor("#D13B3B"), "Parental Control", "Templates & restrictions") { InfoActivity.open(this, InfoKind.PARENTAL) },
         Tile("blocknet", NgIcon.BLOCK, Color.parseColor("#D13B3B"), "Block Internet", "without disconnect") { showTab(1) }
@@ -504,27 +507,27 @@ class HomeActivity : AppCompatActivity() {
             swStates,
             intArrayOf(ColorUtils.setAlphaComponent(Color.WHITE, 150), ColorUtils.setAlphaComponent(Color.BLACK, 70))
         )
+        sw.isChecked = GuestState.isOn(this)
+        dashGuest = sw
         sw.setOnClickListener {
             val on = sw.isChecked
             val ssid = creds.getGuestSsid()
             val key = creds.getGuestKey()
             if (ssid.isBlank() || key.length < 8) {
                 sw.isChecked = !on
-                toast("Set a guest name and password (8+ characters) first")
-                startActivity(Intent(this, WifiSettingsActivity::class.java))
+                toast("Create a guest network first")
+                startActivity(Intent(this, GuestWifiActivity::class.java))
                 return@setOnClickListener
             }
+            sw.isEnabled = false
             lifecycleScope.launch {
-                val ok = try {
-                    RouterAdapterFactory.getAdapter().setGuestWifi(ssid, key, on)
-                } catch (e: Exception) {
-                    false
-                }
-                if (ok) {
-                    toast(if (on) "Guest WiFi ON" else "Guest WiFi OFF")
+                val err = GuestControl.set(this@HomeActivity, ssid, key, on)
+                sw.isEnabled = true
+                if (err == null) {
+                    toast(if (on) "Guest WiFi is on" else "Guest WiFi is off")
                 } else {
                     sw.isChecked = !on
-                    toast("Could not change Guest WiFi")
+                    toast("Could not change Guest WiFi: " + err.take(60))
                 }
             }
         }
@@ -666,8 +669,8 @@ class HomeActivity : AppCompatActivity() {
             var tick = 0
             while (isActive) {
                 updateLiveTraffic()
-                if (tick % 5 == 0 && tab == 0) refreshDashboard(startSpeed = tick == 0, force = false)
-                if (tick % 6 == 3 && tab == 1) loadDevices()
+                if (tick % 8 == 0 && tab == 0) refreshDashboard(startSpeed = tick == 0, force = false)
+                if (tick % 8 == 3 && tab == 1) loadDevices()
                 if (tick % 10 == 5 && tab >= 2) recordDevices(SessionKeeper.devices())
                 tick++
                 delay(1000)
@@ -789,9 +792,21 @@ class HomeActivity : AppCompatActivity() {
             val m = tv("The app could not sign in to the router again automatically. Please log in once more.", 13f, cSub())
             m.setPadding(0, dp(6), 0, dp(12))
             c.addView(m)
-            val b = pill("Log in again", cAcc(), true)
+            val retry = pill("Retry now", cAcc(), true)
+            retry.setOnClickListener {
+                lifecycleScope.launch {
+                    SessionKeeper.relogin(force = true)
+                    loadDevices()
+                }
+            }
+            val b = pill("Log in again", cAcc())
             b.setOnClickListener { logout() }
-            c.addView(b, lp(WRAP, WRAP))
+            val rowBtn = hrow()
+            val rp = lp(WRAP, WRAP)
+            rp.marginEnd = dp(10)
+            rowBtn.addView(retry, rp)
+            rowBtn.addView(b)
+            c.addView(rowBtn, lp(WRAP, WRAP))
             add(box, c, bottom = 0)
             return
         }
@@ -972,8 +987,11 @@ class HomeActivity : AppCompatActivity() {
                     Triple("MAC Filter", "Allow / block devices", {
                         startActivity(Intent(this, MacFilterActivity::class.java))
                     }),
-                    Triple("Wi-Fi Settings", "SSID, password & guest WiFi", {
+                    Triple("Wi-Fi Password", "Main WiFi name & password, restart router", {
                         startActivity(Intent(this, WifiSettingsActivity::class.java))
+                    }),
+                    Triple("Guest WiFi", "Turn guest WiFi on or off", {
+                        startActivity(Intent(this, GuestWifiActivity::class.java))
                     }),
                     Triple("Logs", "Login & action history", {
                         startActivity(Intent(this, LogsActivity::class.java))
