@@ -193,7 +193,7 @@ class DeviceDetailActivity : NgScreen() {
         du.addView(kvRow("Downloaded / uploaded", "Not reported"))
         val note = tv(
             "This router does not report per-device traffic, so no number is shown here. " +
-                "Online time and sessions above are real, recorded while New Device Alerts is on.",
+                "Online time and sessions above are real, recorded while the app is open.",
             12f, cSub()
         )
         note.setPadding(0, dp(6), 0, 0)

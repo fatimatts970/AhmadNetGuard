@@ -74,9 +74,10 @@ object ThemeManager {
         get() = p().getBoolean("fingerprint", true)
         set(v) { p().edit().putBoolean("fingerprint", v).apply() }
 
+    /** Background service (app band hone par bhi chalti hai). Default OFF. */
     var alertsOn: Boolean
-        get() = p().getBoolean("alerts", true)
-        set(v) { p().edit().putBoolean("alerts", v).apply() }
+        get() = p().getBoolean("alerts_bg", false)
+        set(v) { p().edit().putBoolean("alerts_bg", v).apply() }
 
     var autoSpeed: Boolean
         get() = p().getBoolean("autospeed", true)

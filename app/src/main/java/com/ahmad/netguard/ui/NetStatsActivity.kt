@@ -181,7 +181,7 @@ class NetStatsActivity : NgScreen() {
         note.addView(
             tv(
                 "Per-device download/upload volume is not reported by this router, so it is not shown. " +
-                    "Online times are recorded by the app while New Device Alerts is on (Advanced tab).",
+                    "Online times are recorded by the app only while it is open; time with the app closed is never counted.",
                 12f, cSub()
             )
         )

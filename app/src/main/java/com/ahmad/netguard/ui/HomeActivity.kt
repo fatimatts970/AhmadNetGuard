@@ -114,6 +114,7 @@ class HomeActivity : AppCompatActivity() {
         setContentView(root)
 
         if (ThemeManager.alertsOn) startMonitoring()
+        else stopService(Intent(this, ConnectionMonitorService::class.java))
 
         showTab(tab)
     }
@@ -588,6 +589,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
             val devs = SessionKeeper.devices()
+            recordDevices(devs)
             connectedCount = devs.count { it.isOnline }
             dashOnline?.text = connectedCount.toString()
             dashDevicesSub?.text = "$connectedCount online"
@@ -612,6 +614,16 @@ class HomeActivity : AppCompatActivity() {
         val wantSpeed = ThemeManager.autoSpeed && !QuickSpeed.running &&
             ((startSpeed && !QuickSpeed.isFresh()) || force)
         if (wantSpeed) runSpeed()
+    }
+
+    private suspend fun recordDevices(devs: List<Device>) {
+        try {
+            ConnectionTracker.record(this, devs) { d ->
+                toast("New device joined: " + DeviceNamer.pretty(d.displayName) + " (" + d.ipAddress + ")")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun runSpeed() {
@@ -656,6 +668,7 @@ class HomeActivity : AppCompatActivity() {
                 updateLiveTraffic()
                 if (tick % 5 == 0 && tab == 0) refreshDashboard(startSpeed = tick == 0, force = false)
                 if (tick % 6 == 3 && tab == 1) loadDevices()
+                if (tick % 10 == 5 && tab >= 2) recordDevices(SessionKeeper.devices())
                 tick++
                 delay(1000)
             }
@@ -808,6 +821,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
             val devs = SessionKeeper.devices()
+            recordDevices(devs)
             val blocked = try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() }
 
             val list = ArrayList<Device>()
@@ -935,7 +949,7 @@ class HomeActivity : AppCompatActivity() {
         add(col, section("Monitoring"), bottom = 0)
         add(
             col,
-            switchCard("New Device Alerts", "Check the router in the background and alert on new devices", ThemeManager.alertsOn) {
+            switchCard("Background Alerts", "Keep watching the router even when the app is closed. Uses a little battery and shows a notification. While the app is open, devices are tracked anyway.", ThemeManager.alertsOn) {
                 ThemeManager.alertsOn = it
                 if (it) startMonitoring() else stopService(Intent(this, ConnectionMonitorService::class.java))
             },
