@@ -40,7 +40,7 @@ class NotificationsActivity : NgScreen() {
     }
 
     private fun load() {
-        col.removeAllViews()
+        showLoading()
         lifecycleScope.launch {
             val logs: List<AppLog> = try {
                 AppDatabase.getInstance(this@NotificationsActivity).appLogDao().getAllLogs()

@@ -49,9 +49,7 @@ class NetStatsActivity : NgScreen() {
 
     private fun load() {
         col.removeAllViews()
-        val loading = card(18)
-        loading.addView(tv("Loading…", 14f, cSub()))
-        add(col, loading)
+        showLoading()
 
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
@@ -105,15 +103,10 @@ class NetStatsActivity : NgScreen() {
             n.setPadding(0, dp(8), 0, 0)
             w.addView(n)
         } else {
-            w.addView(tv("WiFi counters could not be read from this router yet.", 14f, cText(), true))
-            val n = tv("Open the raw data below and share it, so the parser can be matched to your model.", 12f, cSub())
+            w.addView(tv("WiFi traffic totals are not available", 14f, cText(), true))
+            val n = tv("This router does not share its WiFi traffic counters with the app.", 12f, cSub())
             n.setPadding(0, dp(4), 0, 0)
             w.addView(n)
-            val b = pill("View raw WiFi statistics", cAcc())
-            b.setOnClickListener { InfoActivity.open(this, InfoKind.WIFI_STATS) }
-            val lp = LinearLayout.LayoutParams(wrapP, wrapP)
-            lp.topMargin = dp(10)
-            w.addView(b, lp)
         }
         add(col, w)
 

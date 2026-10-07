@@ -72,9 +72,7 @@ class DeviceDetailActivity : NgScreen() {
 
     private fun load() {
         col.removeAllViews()
-        val loading = card(18)
-        loading.addView(tv("Loading…", 14f, cSub()))
-        add(col, loading)
+        showLoading()
 
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()
@@ -127,7 +125,12 @@ class DeviceDetailActivity : NgScreen() {
             online -> cAcc()
             else -> cSub()
         }
-        top.addView(pill(if (blocked) "Blocked" else if (online) "Online" else "Offline", statusColor))
+        val statusPill = pill(if (blocked) "Blocked" else if (online) "Online" else "Offline", statusColor)
+        statusPill.setOnLongClickListener {
+            copyRecord()
+            true
+        }
+        top.addView(statusPill)
         hero.addView(top)
         val sub = tv(listOf(ip, mac).filter { it.isNotBlank() && it != "—" }.joinToString(" • "), 12f, cSub())
         sub.setPadding(0, dp(6), 0, 0)
@@ -231,30 +234,6 @@ class DeviceDetailActivity : NgScreen() {
             add(col, c)
         }
 
-        // ---- router record (diagnostics)
-        add(col, section("Router record"), bottom = 0)
-        val rec = card(16)
-        if (recordFields.isEmpty()) {
-            rec.addView(tv("The router did not return a record for this device.", 13f, cSub()))
-        } else {
-            recordFields.forEachIndexed { i, v ->
-                if (v.isNotBlank()) {
-                    if (rec.childCount > 0) rec.addView(divider())
-                    rec.addView(kvRow("Field $i", v))
-                }
-            }
-            val copy = pill("Copy record", cAcc())
-            copy.setOnClickListener {
-                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(ClipData.newPlainText("record", recordFields.joinToString("\n")))
-                toast("Copied")
-            }
-            val lp = LinearLayout.LayoutParams(wrapP, wrapP)
-            lp.topMargin = dp(10)
-            rec.addView(copy, lp)
-        }
-        add(col, rec)
-
         // ---- actions
         val actions = hrow()
         val rename = pill("Rename", cAcc())
@@ -284,5 +263,16 @@ class DeviceDetailActivity : NgScreen() {
         actions.addView(rename, p1)
         actions.addView(blk, LinearLayout.LayoutParams(0, wrapP, 1f))
         add(col, actions, bottom = 0)
+    }
+
+    /** Chhupa hua: status pill par long-press = router ka technical record copy. */
+    private fun copyRecord() {
+        if (recordFields.isEmpty()) {
+            toast("No record available")
+            return
+        }
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("record", recordFields.joinToString("\n")))
+        toast("Technical record copied")
     }
 }

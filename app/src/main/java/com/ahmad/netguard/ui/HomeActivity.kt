@@ -126,6 +126,11 @@ class HomeActivity : AppCompatActivity() {
         startLive()
     }
 
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (tab != 0) showTab(0) else super.onBackPressed()
+    }
+
     override fun onPause() {
         liveJob?.cancel()
         super.onPause()
@@ -250,6 +255,13 @@ class HomeActivity : AppCompatActivity() {
             1 -> loadDevices()
             else -> currentPull?.postDelayed({ currentPull?.done() }, 400)
         }
+    }
+
+    private fun tabHeader(title: String, onBack: () -> Unit): View {
+        val h = hrow()
+        h.addView(backButton(onBack))
+        h.addView(tv(title, 22f, cText(), true), lp(0, WRAP, 1f))
+        return h
     }
 
     private fun backButton(onClick: () -> Unit): View {
@@ -404,7 +416,7 @@ class HomeActivity : AppCompatActivity() {
         Tile("guest", NgIcon.PEOPLE, Color.parseColor("#475569"), "Guest", "Guest WiFi on / off") { startActivity(Intent(this, GuestWifiActivity::class.java)) },
         Tile("macfilter", NgIcon.SHIELD, Color.parseColor("#0F9D6E"), "MAC Filter", "Allow/Block devices") { startActivity(Intent(this, MacFilterActivity::class.java)) },
         Tile("parental", NgIcon.FAMILY, Color.parseColor("#D13B3B"), "Parental Control", "Templates & restrictions") { InfoActivity.open(this, InfoKind.PARENTAL) },
-        Tile("blocknet", NgIcon.BLOCK, Color.parseColor("#D13B3B"), "Block Internet", "without disconnect") { showTab(1) }
+        Tile("blocknet", NgIcon.BLOCK, Color.parseColor("#D13B3B"), "Block Internet", "without disconnect") { startActivity(Intent(this, BlockInternetActivity::class.java)) }
     )
 
     private fun buildDashboard(): View = scroller { col ->
@@ -610,6 +622,13 @@ class HomeActivity : AppCompatActivity() {
                 val model = try { ad.getRouterModel() } catch (e: Exception) { null }
                 if (!model.isNullOrBlank()) cachedModel = model
             }
+            RouterCache.model = cachedModel
+            RouterCache.ssid = cachedSsid
+            RouterCache.cpu = cachedCpu
+            if (devs.isNotEmpty()) {
+                RouterCache.online = connectedCount
+                RouterCache.known = devs.size
+            }
             dashModel?.text = cachedModel ?: "Router"
             dashHero?.text = cachedSsid ?: cachedModel ?: "Router"
             if (tab == 0) currentPull?.done()
@@ -712,9 +731,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun buildDevices(): View = scroller { col ->
         val head = hrow()
-        if (devFilter == 1) {
-            head.addView(backButton { devFilter = 0; showTab(1) })
-        }
+        head.addView(backButton { if (devFilter == 1) { devFilter = 0; showTab(1) } else showTab(0) })
         head.addView(tv(if (devFilter == 1) "Blocked Users" else "Devices", 22f, cText(), true), lp(0, WRAP, 1f))
         val refresh = FrameLayout(this)
         refresh.setPadding(dp(8), dp(8), dp(4), dp(8))
@@ -853,6 +870,7 @@ class HomeActivity : AppCompatActivity() {
             devAll = list
             connectedCount = devs.count { it.isOnline && !blocked.contains(it.macAddress.uppercase()) }
             blockedCount = blocked.size
+            RouterCache.blocked = blocked.size
             if (devList !== box) return@launch // tab changed
             val sig = list.joinToString("|") { it.macAddress + it.isOnline + it.isBlocked + it.displayName + it.ipAddress } +
                 "#" + devFilter + names.hashCode()
@@ -934,7 +952,7 @@ class HomeActivity : AppCompatActivity() {
     // ---------------------------------------------------------------- ADVANCED
 
     private fun buildAdvanced(): View = scroller { col ->
-        add(col, tv("Advanced Settings", 22f, cText(), true), bottom = 14)
+        add(col, tabHeader("Advanced Settings") { showTab(0) }, bottom = 14)
 
         add(
             col,
@@ -1042,7 +1060,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun buildTheme(): View = scroller { col ->
-        add(col, tv("Theme", 22f, cText(), true), bottom = 14)
+        add(col, tabHeader("Theme") { showTab(0) }, bottom = 14)
 
         add(col, section("Appearance"), bottom = 0)
         add(

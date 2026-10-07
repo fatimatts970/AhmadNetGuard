@@ -17,6 +17,8 @@ import com.ahmad.netguard.network.PageReader
 import com.ahmad.netguard.network.RouterAdapterFactory
 import com.ahmad.netguard.network.RouterCredentialStore
 import com.ahmad.netguard.model.Device
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /** Router ke woh pages jo sirf padhne ke liye dikhaye jate hain. */
@@ -30,6 +32,7 @@ enum class InfoKind(
         listOf(
             "Connections" to listOf(
                 "/html/bbsp/common/wan_list.asp",
+                "/html/bbsp/common/wan_list_cache_wan.asp",
                 "/html/bbsp/wan/wan.asp",
                 "/html/common/wan_list.asp"
             )
@@ -128,12 +131,48 @@ class InfoActivity : NgScreen() {
         load()
     }
 
+    private class Live(
+        val model: String?, val ssid: String?, val cpu: Int?,
+        val online: Int?, val known: Int?, val blocked: Int?
+    )
+
+    private var liveHolder: LinearLayout? = null
+    private var devicePage: PageReader.Result? = null
+    private var lastLive: Live? = null
+
+    private fun ensureHolder(): LinearLayout {
+        liveHolder?.let { return it }
+        val h = vcol()
+        liveHolder = h
+        val lp = LinearLayout.LayoutParams(matchP, wrapP)
+        lp.bottomMargin = dp(12)
+        col.addView(h, 0, lp)
+        return h
+    }
+
     private fun load() {
-        col.removeAllViews()
         raws.clear()
-        val loading = card(18)
-        loading.addView(tv("Loading from router…", 14f, cSub()))
-        add(col, loading)
+        liveHolder = null
+        devicePage = null
+        col.removeAllViews()
+
+        if (kind == InfoKind.DEVICE) {
+            if (RouterCache.model != null) {
+                val cached = Live(RouterCache.model, RouterCache.ssid, RouterCache.cpu, RouterCache.online, RouterCache.known, RouterCache.blocked)
+                lastLive = cached
+                fillLive(ensureHolder(), cached)
+            } else {
+                showLoading()
+            }
+            lifecycleScope.launch {
+                val fresh = fetchLive()
+                lastLive = fresh
+                fillLive(ensureHolder(), fresh)
+                pull.done()
+            }
+        } else {
+            showLoading()
+        }
 
         lifecycleScope.launch {
             val results = ArrayList<Triple<String, PageReader.Result?, Boolean>>()
@@ -141,95 +180,104 @@ class InfoActivity : NgScreen() {
                 val r = try { PageReader.fetchFirst(paths) } catch (e: Exception) { null }
                 results.add(Triple(label, r, r != null))
             }
-            col.removeAllViews()
-
             if (kind == InfoKind.DEVICE) {
-                add(col, liveRouterCard(results.firstOrNull()?.second))
+                devicePage = results.firstOrNull()?.second
+                devicePage?.let { raws.add(it.path to it.html) }
+                val l = lastLive
+                if (l != null) fillLive(ensureHolder(), l)
+                return@launch
             }
-
+            col.removeAllViews()
             for ((label, r, ok) in results) {
                 add(col, section(label), bottom = 0)
                 if (!ok || r == null) {
-                    val c = card(16)
-                    c.addView(tv("This page could not be read from your router.", 14f, cText(), true))
-                    val tried = kind.sections.firstOrNull { it.first == label }?.second?.joinToString("\n") ?: ""
-                    val tt = tv("Tried:\n$tried", 11f, cSub())
-                    tt.setPadding(0, dp(6), 0, 0)
-                    c.addView(tt)
-                    c.addView(tv("Pull down to retry. If it keeps failing, this model uses a different page address.", 12f, cSub()))
-                    add(col, c)
+                    add(col, unavailableCard())
                     continue
                 }
                 raws.add(r.path to r.html)
                 add(col, sectionCard(kind, r))
             }
-
-            // note + raw button
-            val note = card(14)
-            note.addView(tv("This screen is read-only for now. Values are read directly from your router pages.", 12f, cSub()))
-            if (raws.isNotEmpty()) {
-                val btn = pill("View / copy raw data", cAcc())
-                btn.setOnClickListener { showRaw() }
-                val p = LinearLayout.LayoutParams(wrapP, wrapP)
-                p.topMargin = dp(10)
-                note.addView(btn, p)
-            }
-            add(col, note, bottom = 0)
             pull.done()
         }
+        titleView.setOnLongClickListener {
+            if (raws.isNotEmpty()) showRaw()
+            true
+        }
+    }
+
+    private fun unavailableCard(): View {
+        val c = card(18)
+        c.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        c.addView(NgKit.icon(this, kind.icon, cSub()), LinearLayout.LayoutParams(dp(34), dp(34)))
+        val t = tv("Not available on this router", 15f, cText(), true)
+        t.setPadding(0, dp(8), 0, 0)
+        c.addView(t)
+        val m = tv("Your router model does not share this information with the app.", 12f, cSub())
+        m.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        c.addView(m)
+        return c
     }
 
     // ------------------------------------------------------------ rendering
 
-    /** Router card: yeh data Dashboard par bhi chalta hai, isliye hamesha dikhta hai. */
-    private suspend fun liveRouterCard(page: PageReader.Result?): View {
+    private suspend fun fetchLive(): Live = coroutineScope {
         val ad = RouterAdapterFactory.getAdapter()
-        val model = try { ad.getRouterModel() } catch (e: Exception) { null }
-        val ssid = try { ad.getWifiSsidName() } catch (e: Exception) { null }
-        val cpu = try { ad.getCpuUsagePercent() } catch (e: Exception) { null }
-        val devs = SessionKeeper.devices()
-        val blocked = try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() }
-        val gateway = RouterCredentialStore(this).getGateway()
+        val m = async { try { ad.getRouterModel() } catch (e: Exception) { null } }
+        val s = async { try { ad.getWifiSsidName() } catch (e: Exception) { null } }
+        val c = async { try { ad.getCpuUsagePercent() } catch (e: Exception) { null } }
+        val d = async { SessionKeeper.devices() }
+        val b = async { try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() } }
+        val devs = d.await()
+        val model = m.await() ?: RouterCache.model
+        val ssid = s.await() ?: RouterCache.ssid
+        val cpu = c.await() ?: RouterCache.cpu
+        val blocked = b.await().size
+        RouterCache.model = model
+        RouterCache.ssid = ssid
+        RouterCache.cpu = cpu
+        if (devs.isNotEmpty()) {
+            RouterCache.online = devs.count { it.isOnline }
+            RouterCache.known = devs.size
+        }
+        RouterCache.blocked = blocked
+        Live(model, ssid, cpu, RouterCache.online, RouterCache.known, blocked)
+    }
 
+    private fun fillLive(holder: LinearLayout, l: Live) {
+        holder.removeAllViews()
+        val gateway = RouterCredentialStore(this).getGateway()
         val c = card(18)
         val head = hrow()
         head.addView(NgKit.icon(this, NgIcon.ROUTER, cAcc()), LinearLayout.LayoutParams(dp(44), dp(44)))
         val tb = vcol()
         tb.setPadding(dp(12), 0, 0, 0)
-        tb.addView(tv(RouterNames.label(model ?: "Router"), 20f, cText(), true))
+        tb.addView(tv(RouterNames.label(l.model ?: "Router"), 20f, cText(), true))
         tb.addView(tv("Huawei optical ONT router", 12f, cSub()))
         head.addView(tb, LinearLayout.LayoutParams(0, wrapP, 1f))
         c.addView(head)
-        val sp = android.view.View(this)
-        c.addView(sp, LinearLayout.LayoutParams(1, dp(8)))
+        c.addView(android.view.View(this), LinearLayout.LayoutParams(1, dp(8)))
 
-        c.addView(kvRow("Model", model ?: "—"))
-        c.addView(divider())
-        c.addView(kvRow("WiFi name", ssid ?: "—"))
-        c.addView(divider())
-        c.addView(kvRow("Gateway", gateway))
-        c.addView(divider())
-        c.addView(kvRow("CPU usage", cpu?.let { "$it%" } ?: "—"))
-        c.addView(divider())
-        c.addView(kvRow("Devices online", devs.count { it.isOnline }.toString()))
-        c.addView(divider())
-        c.addView(kvRow("Devices known", devs.size.toString()))
-        c.addView(divider())
-        c.addView(kvRow("Blocked devices", blocked.size.toString()))
+        fun row(label: String, value: String?) {
+            if (c.childCount > 2) c.addView(divider())
+            c.addView(kvRow(label, value ?: "—"))
+        }
+        row("Model", l.model)
+        row("WiFi name", l.ssid)
+        row("Gateway", gateway)
+        row("CPU usage", l.cpu?.let { "$it%" })
+        row("Devices online", l.online?.toString())
+        row("Devices known", l.known?.toString())
+        row("Blocked devices", l.blocked?.toString())
 
-        // extra fields from the hardware page, when it parsed
-        val st = page?.scraped?.calls?.firstOrNull { it.name == "stDeviceInfo" }
+        val st = devicePage?.scraped?.calls?.firstOrNull { it.name == "stDeviceInfo" }
         if (st != null) {
-            st.args.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { c.addView(divider()); c.addView(kvRow("Serial number", it)) }
-            st.args.getOrNull(2)?.takeIf { it.isNotBlank() }?.let { c.addView(divider()); c.addView(kvRow("Hardware version", it)) }
-            st.args.getOrNull(3)?.takeIf { it.isNotBlank() }?.let { c.addView(divider()); c.addView(kvRow("Firmware", it)) }
+            st.args.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { row("Serial number", it) }
+            st.args.getOrNull(2)?.takeIf { it.isNotBlank() }?.let { row("Hardware version", it) }
+            st.args.getOrNull(3)?.takeIf { it.isNotBlank() }?.let { row("Firmware", it) }
         }
-        val html = page?.html ?: ""
-        Regex("memUsed\\s*=\\s*'(\\d+)%'").find(html)?.let {
-            c.addView(divider())
-            c.addView(kvRow("Memory usage", it.groupValues[1] + "%"))
-        }
-        return c
+        val html = devicePage?.html ?: ""
+        Regex("memUsed\\s*=\\s*'(\\d+)%'").find(html)?.let { row("Memory usage", it.groupValues[1] + "%") }
+        holder.addView(c, LinearLayout.LayoutParams(matchP, wrapP))
     }
 
     private fun summaryFor(k: InfoKind, r: PageReader.Result): List<Pair<String, String>> {
@@ -249,6 +297,16 @@ class InfoActivity : NgScreen() {
                 Regex("memUsed\\s*=\\s*'(\\d+)%'").find(html)?.let { rows.add("Memory Usage" to it.groupValues[1] + "%") }
             }
             InfoKind.WAN, InfoKind.DNS -> {
+                for (c in s.calls.filter { it.name == "PolicyRouteItem" && it.args.size >= 4 }) {
+                    val wanName = c.args[3]
+                    if (wanName.isBlank()) continue
+                    val isPpp = wanName.contains("ppp", true)
+                    rows.add("Connection" to wanName)
+                    rows.add("Type" to (if (isPpp) "PPPoE" else "IP / Bridge"))
+                    val bound = c.args.getOrNull(5)?.replace(",", ", ") ?: ""
+                    if (bound.isNotBlank()) rows.add("Used by" to bound)
+                    rows.add("" to "")
+                }
                 for (c in s.calls.filter { it.name == "WanPPP" || it.name == "WanIP" }) {
                     val a = c.args
                     val domain = a.firstOrNull { it.contains("WAN", ignoreCase = true) && it.contains(".") } ?: ""
@@ -317,44 +375,20 @@ class InfoActivity : NgScreen() {
     }
 
     private fun sectionCard(k: InfoKind, r: PageReader.Result): View {
+        val rows = summaryFor(k, r).toMutableList()
+        while (rows.isNotEmpty() && rows.last().first.isEmpty()) rows.removeAt(rows.size - 1)
+        if (rows.isEmpty()) return unavailableCard()
         val c = card(16)
-        val rows = summaryFor(k, r)
-        val s = r.scraped
-        var shown = 0
-
+        var prevWasRow = false
         for ((label, value) in rows) {
             if (label.isEmpty()) {
                 c.addView(divider())
+                prevWasRow = false
                 continue
             }
-            if (shown > 0 && c.childCount > 0) c.addView(divider())
+            if (prevWasRow) c.addView(divider())
             c.addView(kvRow(label, value))
-            shown++
-        }
-
-        // baqi calls (jo summary mein nahi aaye) — raw args
-        val extraCalls = s.calls.filter { it.args.size >= 2 }.take(12)
-        if (rows.isEmpty() && extraCalls.isNotEmpty()) {
-            for (call in extraCalls) {
-                if (c.childCount > 0) c.addView(divider())
-                val shownArgs = call.args.filter { it.isNotBlank() }.joinToString("  ·  ")
-                val title = tv(call.name, 12f, cSub(), true)
-                title.setPadding(0, dp(8), 0, dp(2))
-                c.addView(title)
-                c.addView(tv(shownArgs, 13f, cText()))
-            }
-        }
-
-        if (rows.isEmpty() && extraCalls.isEmpty() && s.fields.isNotEmpty()) {
-            for ((k2, v2) in s.fields.entries.take(25)) {
-                if (c.childCount > 0) c.addView(divider())
-                c.addView(kvRow(k2, v2))
-            }
-        }
-
-        if (c.childCount == 0) {
-            c.addView(tv("Page found (${r.path}) but its fields could not be parsed on this router.", 13f, cText(), true))
-            c.addView(tv("Tap 'View / copy raw data' below and share it so the parser can be fixed.", 12f, cSub()))
+            prevWasRow = true
         }
         return c
     }

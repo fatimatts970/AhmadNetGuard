@@ -27,6 +27,8 @@ abstract class NgScreen : AppCompatActivity() {
 
     protected lateinit var col: LinearLayout
     protected lateinit var pull: PullRefreshLayout
+    protected lateinit var titleView: TextView
+    private lateinit var loadingPill: TextView
     private lateinit var rootView: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -255,6 +257,13 @@ abstract class NgScreen : AppCompatActivity() {
         }
     }
 
+    /** Screen ke beech mein bold red "Loading" pill (content aate hi khud hat jata hai). */
+    protected fun showLoading(text: String = "Loading from router…") {
+        col.removeAllViews()
+        loadingPill.text = text
+        loadingPill.visibility = View.VISIBLE
+    }
+
     /** Header (back + title + optional refresh) aur scrolling column banata hai. */
     protected fun setupScreen(title: String, onRefresh: (() -> Unit)?) {
         NgKit.chrome(this)
@@ -280,7 +289,8 @@ abstract class NgScreen : AppCompatActivity() {
         head.addView(back)
         val spacer = View(this)
         head.addView(spacer, LinearLayout.LayoutParams(dp(6), 1))
-        head.addView(tv(title, 20f, cText(), true), LinearLayout.LayoutParams(0, wrapP, 1f))
+        titleView = tv(title, 20f, cText(), true)
+        head.addView(titleView, LinearLayout.LayoutParams(0, wrapP, 1f))
         if (onRefresh != null) {
             val rf = FrameLayout(this)
             rf.setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -295,7 +305,29 @@ abstract class NgScreen : AppCompatActivity() {
         col = vcol()
         col.setPadding(dp(16), dp(8), dp(16), dp(28))
         pull.scroll.addView(col, FrameLayout.LayoutParams(matchP, wrapP))
-        rootView.addView(pull, LinearLayout.LayoutParams(matchP, 0, 1f))
+        val body = FrameLayout(this)
+        body.addView(pull, FrameLayout.LayoutParams(matchP, matchP))
+        loadingPill = TextView(this)
+        loadingPill.text = "Loading from router…"
+        loadingPill.textSize = 15f
+        loadingPill.setTypeface(loadingPill.typeface, Typeface.BOLD)
+        loadingPill.setTextColor(ThemeManager.danger())
+        loadingPill.setPadding(dp(24), dp(13), dp(24), dp(13))
+        val lpBg = GradientDrawable()
+        lpBg.cornerRadius = dpf(40f)
+        lpBg.setColor(ColorUtils.setAlphaComponent(ThemeManager.danger(), 28))
+        lpBg.setStroke(dp(1), ColorUtils.setAlphaComponent(ThemeManager.danger(), 120))
+        loadingPill.background = lpBg
+        loadingPill.visibility = View.GONE
+        body.addView(loadingPill, FrameLayout.LayoutParams(wrapP, wrapP, Gravity.CENTER))
+        rootView.addView(body, LinearLayout.LayoutParams(matchP, 0, 1f))
+        col.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+            override fun onChildViewAdded(parent: View?, child: View?) {
+                loadingPill.visibility = View.GONE
+            }
+
+            override fun onChildViewRemoved(parent: View?, child: View?) {}
+        })
         setContentView(rootView)
     }
 }

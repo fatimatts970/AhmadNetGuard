@@ -22,9 +22,7 @@ class MacFilterActivity : NgScreen() {
 
     private fun load() {
         col.removeAllViews()
-        val loading = card(18)
-        loading.addView(tv("Loading…", 14f, cSub()))
-        add(col, loading)
+        showLoading()
 
         lifecycleScope.launch {
             val ad = RouterAdapterFactory.getAdapter()

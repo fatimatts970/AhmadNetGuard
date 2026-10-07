@@ -1,42 +1,48 @@
 package com.ahmad.netguard.ui
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.lifecycleScope
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
 
-/** Guest WiFi: ON/OFF pill, naya guest network banana, saved networks (use / edit / delete). */
+/** Guest WiFi: naya network banana aur saved networks (Active / Edit / Delete / ON-OFF). */
 class GuestWifiActivity : NgScreen() {
 
     private lateinit var creds: RouterCredentialStore
     private lateinit var ssidEdit: EditText
     private lateinit var passEdit: EditText
     private lateinit var listBox: LinearLayout
-    private lateinit var togglePill: TextView
     private lateinit var statusText: TextView
     private var editing: String? = null
     private var busy = false
+    private val green = Color.parseColor("#16A34A")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         creds = RouterCredentialStore(this)
         setupScreen("Guest WiFi") {
             refreshHeader()
-            pull.postDelayed({ pull.done() }, 500)
+            renderList()
+            pull.postDelayed({ pull.done() }, 400)
         }
         build()
     }
 
     override fun onResume() {
         super.onResume()
-        if (::togglePill.isInitialized) refreshHeader()
+        if (::statusText.isInitialized) {
+            refreshHeader()
+            renderList()
+        }
     }
 
     private fun build() {
-        // ---- header card with ON/OFF pill
         val head = card(16)
         val row = hrow()
         row.addView(ic(NgIcon.WIFI, cAcc(), 28))
@@ -46,13 +52,9 @@ class GuestWifiActivity : NgScreen() {
         statusText = tv("", 12f, cSub())
         tb.addView(statusText)
         row.addView(tb, LinearLayout.LayoutParams(0, wrapP, 1f))
-        togglePill = pill("OFF", cSub())
-        togglePill.setOnClickListener { toggle() }
-        row.addView(togglePill)
         head.addView(row)
         add(col, head, bottom = 14)
 
-        // ---- add / edit
         add(col, section("Guest network"), bottom = 0)
         val form = card(16)
         form.addView(fieldLabel("Guest network name"))
@@ -82,16 +84,6 @@ class GuestWifiActivity : NgScreen() {
     private fun refreshHeader() {
         val on = GuestState.isOn(this)
         val active = creds.getGuestSsid()
-        togglePill.text = if (on) "ON" else "OFF"
-        val color = if (on) cAcc() else cSub()
-        togglePill.setTextColor(if (on) android.graphics.Color.WHITE else cSub())
-        val g = android.graphics.drawable.GradientDrawable()
-        g.cornerRadius = dpf(40f)
-        if (on) g.setColor(color) else {
-            g.setColor(androidx.core.graphics.ColorUtils.setAlphaComponent(color, 36))
-            g.setStroke(dp(1), androidx.core.graphics.ColorUtils.setAlphaComponent(color, 120))
-        }
-        togglePill.background = g
         statusText.text = when {
             active.isBlank() -> "No guest network saved yet"
             on -> "On · $active"
@@ -109,7 +101,6 @@ class GuestWifiActivity : NgScreen() {
         }
         val target = !GuestState.isOn(this)
         busy = true
-        togglePill.text = "…"
         lifecycleScope.launch {
             val err = GuestControl.set(this@GuestWifiActivity, ssid, key, target)
             busy = false
@@ -147,6 +138,21 @@ class GuestWifiActivity : NgScreen() {
         }
     }
 
+    private fun onOffPill(on: Boolean, working: Boolean): TextView {
+        val label = if (working) "…" else if (on) "ON" else "OFF"
+        val t = tv(label, 12f, if (on) Color.WHITE else cSub(), true)
+        t.gravity = android.view.Gravity.CENTER
+        t.setPadding(dp(18), dp(8), dp(18), dp(8))
+        val g = GradientDrawable()
+        g.cornerRadius = dpf(40f)
+        if (on) g.setColor(green) else {
+            g.setColor(ColorUtils.setAlphaComponent(cSub(), 36))
+            g.setStroke(dp(1), ColorUtils.setAlphaComponent(cSub(), 120))
+        }
+        t.background = g
+        return t
+    }
+
     private fun renderList() {
         listBox.removeAllViews()
         val profiles = creds.getGuestProfiles()
@@ -155,12 +161,13 @@ class GuestWifiActivity : NgScreen() {
             add(listBox, tv("No saved guest networks yet.", 13f, cSub()), bottom = 0)
             return
         }
+        val isOn = GuestState.isOn(this)
         for ((ssid, pass) in profiles) {
             val isActive = ssid == active
             val c = card(14)
             val top = hrow()
             top.addView(tv(ssid, 16f, cText(), true), LinearLayout.LayoutParams(0, wrapP, 1f))
-            if (isActive) top.addView(pill(if (GuestState.isOn(this)) "Active · ON" else "Active · OFF", cAcc()))
+            if (isActive) top.addView(pill("Active", green, true))
             c.addView(top)
 
             var shown = false
@@ -173,12 +180,15 @@ class GuestWifiActivity : NgScreen() {
             c.addView(pw)
 
             val actions = hrow()
+            fun gap(): LinearLayout.LayoutParams {
+                val p = LinearLayout.LayoutParams(wrapP, wrapP)
+                p.marginEnd = dp(10)
+                return p
+            }
             if (!isActive) {
                 val use = pill("Use", cAcc(), true)
                 use.setOnClickListener { useProfile(ssid, pass) }
-                val up = LinearLayout.LayoutParams(wrapP, wrapP)
-                up.marginEnd = dp(10)
-                actions.addView(use, up)
+                actions.addView(use, gap())
             }
             val edit = pill("Edit", cAcc())
             edit.setOnClickListener {
@@ -187,12 +197,15 @@ class GuestWifiActivity : NgScreen() {
                 passEdit.setText(pass)
                 toast("Change the values above, then tap Save & turn on")
             }
+            actions.addView(edit, gap())
             val del = pill("Delete", ThemeManager.danger())
             del.setOnClickListener { confirmDelete(ssid, pass, isActive) }
-            val ep = LinearLayout.LayoutParams(wrapP, wrapP)
-            ep.marginEnd = dp(10)
-            actions.addView(edit, ep)
-            actions.addView(del)
+            actions.addView(del, if (isActive) gap() else LinearLayout.LayoutParams(wrapP, wrapP))
+            if (isActive) {
+                val sw = onOffPill(isOn, busy)
+                sw.setOnClickListener { toggle() }
+                actions.addView(sw)
+            }
             c.addView(actions)
             add(listBox, c, bottom = 10)
         }
@@ -227,12 +240,10 @@ class GuestWifiActivity : NgScreen() {
     }
 
     private fun confirmDelete(ssid: String, pass: String, isActive: Boolean) {
-        val msg = if (isActive && GuestState.isOn(this))
-            "\"$ssid\" is on. Turn it off and remove it?"
-        else
-            "Remove \"$ssid\" from the saved list?"
+        val turnOffFirst = isActive && GuestState.isOn(this)
+        val msg = if (turnOffFirst) "\"$ssid\" is on. Turn it off and remove it?" else "Remove \"$ssid\" from the saved list?"
         NgDialog.confirm(this, "Delete guest network", msg, "Delete", true) {
-            if (!(isActive && GuestState.isOn(this))) {
+            if (!turnOffFirst) {
                 removeLocally(ssid, isActive)
                 toast("Removed")
                 return@confirm

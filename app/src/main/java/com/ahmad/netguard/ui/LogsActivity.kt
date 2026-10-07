@@ -42,7 +42,7 @@ class LogsActivity : NgScreen() {
     }
 
     private fun load() {
-        col.removeAllViews()
+        showLoading()
         lifecycleScope.launch {
             val dao = AppDatabase.getInstance(this@LogsActivity).appLogDao()
             val type = filters[filterIdx].second

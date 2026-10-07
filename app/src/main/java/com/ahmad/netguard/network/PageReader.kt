@@ -48,22 +48,55 @@ object PageReader {
     /** Pehla aisa path jo valid page de. */
     suspend fun fetchFirst(paths: List<String>): Result? {
         val ad = RouterAdapterFactory.getAdapter() as? HuaweiRouterAdapter ?: return null
+        var sawLogin = false
         for (attempt in 0..1) {
             for (p in paths) {
                 val body = ad.fetchPage(p) ?: continue
+                if (body.contains("Frm_Username")) sawLogin = true
                 if (looksValid(body)) return Result(p, body, scrape(body))
             }
-            if (attempt == 0 && !com.ahmad.netguard.ui.SessionKeeper.relogin()) return null
+            // sirf tab dobara login karo jab router ne login page diya ho (404 par nahi)
+            if (attempt == 0 && (!sawLogin || !com.ahmad.netguard.ui.SessionKeeper.relogin())) return null
         }
         return null
     }
 
     fun scrape(html: String): Scraped {
         val calls = ArrayList<Call>()
-        for (m in callRegex.findAll(html)) {
+        val startRe = Regex("new\\s+(\\w+)\\s*\\(")
+        for (m in startRe.findAll(html)) {
             val name = m.groupValues[1]
             if (name in skipCalls) continue
-            val args = argRegex.findAll(m.groupValues[2]).map { a ->
+            var i = m.range.last + 1
+            var depth = 1
+            var quote: Char? = null
+            val sb = StringBuilder()
+            while (i < html.length && depth > 0 && sb.length < 4000) {
+                val ch = html[i]
+                val q = quote
+                if (q != null) {
+                    sb.append(ch)
+                    if (ch == '\\' && i + 1 < html.length) {
+                        sb.append(html[i + 1])
+                        i++
+                    } else if (ch == q) {
+                        quote = null
+                    }
+                } else if (ch == '"' || ch == '\'') {
+                    quote = ch
+                    sb.append(ch)
+                } else if (ch == '(') {
+                    depth++
+                    sb.append(ch)
+                } else if (ch == ')') {
+                    depth--
+                    if (depth > 0) sb.append(ch)
+                } else {
+                    sb.append(ch)
+                }
+                i++
+            }
+            val args = argRegex.findAll(sb.toString()).map { a ->
                 val raw = when {
                     a.groups[1] != null -> a.groups[1]!!.value
                     a.groups[2] != null -> a.groups[2]!!.value
