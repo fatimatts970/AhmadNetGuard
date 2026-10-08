@@ -8,6 +8,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import androidx.lifecycle.lifecycleScope
+import android.view.Gravity
 import com.ahmad.netguard.network.RouterCredentialStore
 import kotlinx.coroutines.launch
 
@@ -20,25 +21,32 @@ class GuestWifiActivity : NgScreen() {
     private lateinit var listBox: LinearLayout
     private lateinit var statusText: TextView
     private var editing: String? = null
+    private var routerSsid: String? = null
     private var busy = false
     private val green = Color.parseColor("#16A34A")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         creds = RouterCredentialStore(this)
-        setupScreen("Guest WiFi") {
-            refreshHeader()
-            renderList()
-            pull.postDelayed({ pull.done() }, 400)
-        }
+        setupScreen("Guest WiFi") { syncFromRouter() }
         build()
     }
 
     override fun onResume() {
         super.onResume()
-        if (::statusText.isInitialized) {
+        if (::statusText.isInitialized) syncFromRouter()
+    }
+
+    /** Router se asli on/off aur naam padho (local yaad par bharosa nahi). */
+    private fun syncFromRouter() {
+        refreshHeader()
+        renderList()
+        lifecycleScope.launch {
+            val st = GuestState.sync(this@GuestWifiActivity)
+            routerSsid = st?.ssid
             refreshHeader()
             renderList()
+            pull.done()
         }
     }
 
@@ -83,11 +91,11 @@ class GuestWifiActivity : NgScreen() {
 
     private fun refreshHeader() {
         val on = GuestState.isOn(this)
-        val active = creds.getGuestSsid()
+        val shownName = if (on && !routerSsid.isNullOrBlank()) routerSsid!! else creds.getGuestSsid()
         statusText.text = when {
-            active.isBlank() -> "No guest network saved yet"
-            on -> "On · $active"
-            else -> "Off · $active"
+            shownName.isBlank() -> "No guest network saved yet"
+            on -> "On · $shownName"
+            else -> "Off · $shownName"
         }
     }
 
@@ -101,12 +109,15 @@ class GuestWifiActivity : NgScreen() {
         }
         val target = !GuestState.isOn(this)
         busy = true
+        renderList()
+        toast("Applying… the router restarts its WiFi, this takes about 10 seconds")
         lifecycleScope.launch {
             val err = GuestControl.set(this@GuestWifiActivity, ssid, key, target)
             busy = false
+            if (err == null) routerSsid = if (target) ssid else routerSsid
             refreshHeader()
             renderList()
-            toast(if (err == null) (if (target) "Guest WiFi is on" else "Guest WiFi is off") else "Failed: " + err.take(70))
+            toast(if (err == null) (if (target) "Guest WiFi is on" else "Guest WiFi is off") else err)
         }
     }
 
@@ -117,13 +128,23 @@ class GuestWifiActivity : NgScreen() {
             toast("Enter a name and a password of 8+ characters")
             return
         }
+        if (ssid.toByteArray(Charsets.UTF_8).size > 32) {
+            toast("Name is too long: 32 bytes maximum (each emoji uses 4)")
+            return
+        }
+        if (pass.length > 63) {
+            toast("Password can be 63 characters at most")
+            return
+        }
         btn.isEnabled = false
-        btn.text = "Saving…"
+        btn.text = "Applying…"
+        toast("Applying… the router restarts its WiFi, this takes about 10 seconds")
         lifecycleScope.launch {
             val err = GuestControl.set(this@GuestWifiActivity, ssid, pass, true)
             btn.isEnabled = true
             btn.text = "Save & turn on"
             if (err == null) {
+                routerSsid = ssid
                 creds.saveGuestProfile(ssid, pass, editing)
                 creds.saveGuestWifi(ssid, pass)
                 editing = null
@@ -133,23 +154,24 @@ class GuestWifiActivity : NgScreen() {
                 renderList()
                 toast("Guest WiFi is on")
             } else {
-                toast("Failed: " + err.take(80))
+                toast(err)
             }
         }
     }
 
-    private fun onOffPill(on: Boolean, working: Boolean): TextView {
-        val label = if (working) "…" else if (on) "ON" else "OFF"
-        val t = tv(label, 12f, if (on) Color.WHITE else cSub(), true)
-        t.gravity = android.view.Gravity.CENTER
-        t.setPadding(dp(18), dp(8), dp(18), dp(8))
+    private fun fixedPill(text: String, fg: Int, filledColor: Int?, outline: Int?): TextView {
+        val t = tv(text, 12f, fg, true)
+        t.gravity = Gravity.CENTER
+        t.setPadding(0, dp(9), 0, dp(9))
         val g = GradientDrawable()
         g.cornerRadius = dpf(40f)
-        if (on) g.setColor(green) else {
-            g.setColor(ColorUtils.setAlphaComponent(cSub(), 36))
-            g.setStroke(dp(1), ColorUtils.setAlphaComponent(cSub(), 120))
+        if (filledColor != null) g.setColor(filledColor)
+        else {
+            g.setColor(ColorUtils.setAlphaComponent(outline ?: cSub(), 30))
+            g.setStroke(dp(1), ColorUtils.setAlphaComponent(outline ?: cSub(), 130))
         }
         t.background = g
+        t.layoutParams = LinearLayout.LayoutParams(dp(96), wrapP)
         return t
     }
 
@@ -165,31 +187,39 @@ class GuestWifiActivity : NgScreen() {
         for ((ssid, pass) in profiles) {
             val isActive = ssid == active
             val c = card(14)
+
+            // row 1: name + Active
             val top = hrow()
             top.addView(tv(ssid, 16f, cText(), true), LinearLayout.LayoutParams(0, wrapP, 1f))
-            if (isActive) top.addView(pill("Active", green, true))
+            if (isActive) top.addView(fixedPill("Active", Color.WHITE, green, null))
             c.addView(top)
 
+            // row 2: password + ON/OFF (exactly under Active) or Use
+            val mid = hrow()
             var shown = false
             val pw = tv("Password  ••••••••   (tap to show)", 12f, cSub())
-            pw.setPadding(0, dp(6), 0, dp(10))
             pw.setOnClickListener {
                 shown = !shown
                 pw.text = if (shown) "Password  $pass" else "Password  ••••••••   (tap to show)"
             }
-            c.addView(pw)
-
-            val actions = hrow()
-            fun gap(): LinearLayout.LayoutParams {
-                val p = LinearLayout.LayoutParams(wrapP, wrapP)
-                p.marginEnd = dp(10)
-                return p
-            }
-            if (!isActive) {
-                val use = pill("Use", cAcc(), true)
+            mid.addView(pw, LinearLayout.LayoutParams(0, wrapP, 1f))
+            if (isActive) {
+                val label = if (busy) "…" else if (isOn) "ON" else "OFF"
+                val sw = if (isOn && !busy) fixedPill(label, Color.WHITE, green, null)
+                else fixedPill(label, cSub(), null, cSub())
+                sw.setOnClickListener { toggle() }
+                mid.addView(sw)
+            } else {
+                val use = fixedPill("Use", Color.WHITE, cAcc(), null)
                 use.setOnClickListener { useProfile(ssid, pass) }
-                actions.addView(use, gap())
+                mid.addView(use)
             }
+            val mlp = LinearLayout.LayoutParams(matchP, wrapP)
+            mlp.topMargin = dp(10)
+            c.addView(mid, mlp)
+
+            // row 3: Edit + Delete
+            val actions = hrow()
             val edit = pill("Edit", cAcc())
             edit.setOnClickListener {
                 editing = ssid
@@ -197,16 +227,15 @@ class GuestWifiActivity : NgScreen() {
                 passEdit.setText(pass)
                 toast("Change the values above, then tap Save & turn on")
             }
-            actions.addView(edit, gap())
+            val ep = LinearLayout.LayoutParams(wrapP, wrapP)
+            ep.marginEnd = dp(10)
+            actions.addView(edit, ep)
             val del = pill("Delete", ThemeManager.danger())
             del.setOnClickListener { confirmDelete(ssid, pass, isActive) }
-            actions.addView(del, if (isActive) gap() else LinearLayout.LayoutParams(wrapP, wrapP))
-            if (isActive) {
-                val sw = onOffPill(isOn, busy)
-                sw.setOnClickListener { toggle() }
-                actions.addView(sw)
-            }
-            c.addView(actions)
+            actions.addView(del)
+            val alp = LinearLayout.LayoutParams(wrapP, wrapP)
+            alp.topMargin = dp(12)
+            c.addView(actions, alp)
             add(listBox, c, bottom = 10)
         }
     }
@@ -214,14 +243,17 @@ class GuestWifiActivity : NgScreen() {
     private fun useProfile(ssid: String, pass: String) {
         if (busy) return
         busy = true
+        renderList()
+        toast("Applying… the router restarts its WiFi, this takes about 10 seconds")
         lifecycleScope.launch {
             val err = GuestControl.set(this@GuestWifiActivity, ssid, pass, true)
             busy = false
             if (err == null) {
                 creds.saveGuestWifi(ssid, pass)
+                routerSsid = ssid
                 toast("Now using \"$ssid\"")
             } else {
-                toast("Failed: " + err.take(70))
+                toast(err)
             }
             refreshHeader()
             renderList()
@@ -240,23 +272,29 @@ class GuestWifiActivity : NgScreen() {
     }
 
     private fun confirmDelete(ssid: String, pass: String, isActive: Boolean) {
-        val turnOffFirst = isActive && GuestState.isOn(this)
-        val msg = if (turnOffFirst) "\"$ssid\" is on. Turn it off and remove it?" else "Remove \"$ssid\" from the saved list?"
+        val msg = "Remove \"$ssid\"? If it is on, it will be turned off on the router first."
         NgDialog.confirm(this, "Delete guest network", msg, "Delete", true) {
-            if (!turnOffFirst) {
-                removeLocally(ssid, isActive)
-                toast("Removed")
-                return@confirm
-            }
             lifecycleScope.launch {
+                val st = if (isActive) GuestState.sync(this@GuestWifiActivity) else null
+                val routerOn = if (isActive) (st?.enabled ?: GuestState.isOn(this@GuestWifiActivity)) else false
+                if (!routerOn) {
+                    removeLocally(ssid, isActive)
+                    toast("Removed")
+                    return@launch
+                }
+                busy = true
+                renderList()
+                toast("Turning it off… about 10 seconds")
                 val err = GuestControl.set(this@GuestWifiActivity, ssid, pass, false)
+                busy = false
                 if (err == null) {
                     removeLocally(ssid, true)
                     toast("Guest network turned off and removed")
                 } else {
+                    renderList()
                     NgDialog.confirm(
                         this@GuestWifiActivity, "Could not turn it off",
-                        err.take(120) + "\n\nRemove it from the list anyway? The router's guest WiFi may stay on.",
+                        err + "\n\nRemove it from the list anyway? The router's guest WiFi may stay on.",
                         "Remove anyway", true
                     ) {
                         removeLocally(ssid, true)

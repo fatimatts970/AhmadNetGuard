@@ -123,6 +123,10 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         dashGuest?.isChecked = GuestState.isOn(this)
+        lifecycleScope.launch {
+            val st = GuestState.sync(this@HomeActivity)
+            if (st != null) dashGuest?.isChecked = st.enabled
+        }
         startLive()
     }
 
@@ -532,14 +536,15 @@ class HomeActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             sw.isEnabled = false
+            toast("Applying… the router restarts its WiFi, this takes about 10 seconds")
             lifecycleScope.launch {
                 val err = GuestControl.set(this@HomeActivity, ssid, key, on)
                 sw.isEnabled = true
                 if (err == null) {
                     toast(if (on) "Guest WiFi is on" else "Guest WiFi is off")
                 } else {
-                    sw.isChecked = !on
-                    toast("Could not change Guest WiFi: " + err.take(60))
+                    sw.isChecked = GuestState.isOn(this@HomeActivity)
+                    toast(err)
                 }
             }
         }
