@@ -40,7 +40,7 @@ object GuestRouter {
             if (!domain.endsWith("WLANConfiguration.2")) continue
             val enable = c.args.getOrNull(1)
             if (enable == "1" || enable == "0") {
-                return State(enable == "1", c.args.getOrNull(3) ?: "")
+                return State(enable == "1", TextFix.decode(c.args.getOrNull(3)))
             }
         }
         return null
@@ -95,8 +95,10 @@ object GuestControl {
             if (st.enabled != enable) {
                 return@withOp if (enable) "The router did not turn the guest WiFi on." else "The router did not turn the guest WiFi off."
             }
-            if (enable && st.ssid.isNotBlank() && st.ssid != ssid) {
-                return@withOp "The router kept the old name \"" + st.ssid + "\". Try a shorter name without special symbols."
+            val want = TextFix.plain(ssid)
+            val got = TextFix.plain(st.ssid)
+            if (enable && want.isNotEmpty() && got.isNotEmpty() && want != got) {
+                return@withOp "The router kept the old name \"" + st.ssid + "\". Try a shorter name."
             }
             null
         }

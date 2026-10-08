@@ -229,7 +229,7 @@ class InfoActivity : NgScreen() {
         val b = async { try { ad.getBlockedMacs() } catch (e: Exception) { emptySet<String>() } }
         val devs = d.await()
         val model = m.await() ?: RouterCache.model
-        val ssid = s.await() ?: RouterCache.ssid
+        val ssid = s.await()?.let { TextFix.decode(it) } ?: RouterCache.ssid
         val cpu = c.await() ?: RouterCache.cpu
         val blocked = b.await().size
         RouterCache.model = model

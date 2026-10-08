@@ -621,7 +621,7 @@ class HomeActivity : AppCompatActivity() {
 
             if (cachedSsid == null || force) {
                 val ssid = try { ad.getWifiSsidName() } catch (e: Exception) { null }
-                if (!ssid.isNullOrBlank()) cachedSsid = ssid
+                if (!ssid.isNullOrBlank()) cachedSsid = TextFix.decode(ssid)
             }
             if (cachedModel == null || force) {
                 val model = try { ad.getRouterModel() } catch (e: Exception) { null }

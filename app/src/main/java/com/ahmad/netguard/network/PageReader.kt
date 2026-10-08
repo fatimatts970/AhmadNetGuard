@@ -37,7 +37,7 @@ object PageReader {
             matcher.appendReplacement(sb, Matcher.quoteReplacement(ch.toString()))
         }
         matcher.appendTail(sb)
-        return sb.toString()
+        return com.ahmad.netguard.ui.TextFix.decode(sb.toString())
     }
 
     private fun looksValid(body: String): Boolean =

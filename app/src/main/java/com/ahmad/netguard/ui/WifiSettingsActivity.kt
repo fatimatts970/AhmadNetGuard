@@ -64,7 +64,7 @@ class WifiSettingsActivity : NgScreen() {
     private fun loadSsid() {
         lifecycleScope.launch {
             val s = try { RouterAdapterFactory.getAdapter().getWifiSsidName() } catch (e: Exception) { null }
-            if (!s.isNullOrBlank() && ssidEdit.text.isNullOrBlank()) ssidEdit.setText(s)
+            if (!s.isNullOrBlank() && ssidEdit.text.isNullOrBlank()) ssidEdit.setText(TextFix.decode(s))
             pull.done()
         }
     }

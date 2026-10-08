@@ -91,7 +91,8 @@ class GuestWifiActivity : NgScreen() {
 
     private fun refreshHeader() {
         val on = GuestState.isOn(this)
-        val shownName = if (on && !routerSsid.isNullOrBlank()) routerSsid!! else creds.getGuestSsid()
+        val saved = creds.getGuestSsid()
+        val shownName = if (saved.isNotBlank()) saved else (routerSsid ?: "")
         statusText.text = when {
             shownName.isBlank() -> "No guest network saved yet"
             on -> "On · $shownName"
